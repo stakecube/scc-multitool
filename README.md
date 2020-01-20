@@ -4,7 +4,7 @@ SCC MN install guide
 https://stakecube.net/app/download/guides/SCC_node_setup_guide_v2.pdf
 
 Commands to install sccmultitool.sh
-wget https://www.dropbox.com/s/6upynr1dm1i7w4g/sccmultitool.sh -O sccmultitool.sh
+wget https://github.com/stakecube/SCC-multitool/blob/master/sccmultitool.sh -O sccmultitool.sh
 
 chmod +x sccmultitool.sh
 
@@ -28,7 +28,7 @@ When setting up your masternode.conf file in your control wallet you will always
 
 Check.sh instructions 
 Updated check.sh file for new commands
-wget https://www.dropbox.com/s/7rc171ypxdcyz85/check.sh -O check.sh
+wget https://github.com/stakecube/SCC-multitool/blob/master/check.sh -O check.sh
 
 chmod +x check.sh
 
