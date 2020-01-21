@@ -1,9 +1,11 @@
 SCC Multi Tool script tested on Linux 16.04
 
 SCC MN install guide
+
 https://stakecube.net/app/download/guides/SCC_node_setup_guide_v2.pdf
 
 Commands to install sccmultitool.sh
+
 wget https://github.com/stakecube/SCC-multitool/raw/master/sccmultitool.sh
 
 chmod +x sccmultitool.sh
