@@ -4,7 +4,7 @@ SCC MN install guide
 https://stakecube.net/app/download/guides/SCC_node_setup_guide_v2.pdf
 
 Commands to install sccmultitool.sh
-wget https://github.com/stakecube/SCC-multitool/blob/master/sccmultitool.sh -O sccmultitool.sh
+wget https://github.com/stakecube/SCC-multitool/raw/master/sccmultitool.sh
 
 chmod +x sccmultitool.sh
 
@@ -27,11 +27,14 @@ To run multiple MN's on one server sharing the same IP on the VPS side you will 
 When setting up your masternode.conf file in your control wallet you will always need to set the port number to 40000.
 
 Check.sh instructions 
-Updated check.sh file for new commands
-wget https://github.com/stakecube/SCC-multitool/blob/master/check.sh -O check.sh
+
+Updated check.sh file for new commands if you are using an older version of this script
+wget https://github.com/stakecube/SCC-multitool/raw/master/check.sh
 
 chmod +x check.sh
 
 The new server option will also add a file in root named check.sh
 edit this file using 
 nano check.sh
+add node alias to "node="
+example "node1=alias"
