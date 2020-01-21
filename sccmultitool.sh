@@ -43,7 +43,7 @@ case $start in
     #Install zip and unzip tools
     apt install zip unzip
     #Get check.sh
-    wget https://www.dropbox.com/s/7rc171ypxdcyz85/check.sh -O check.sh
+    wget https://github.com/stakecube/SCC-multitool/blob/master/check.sh -O check.sh
     chmod +x check.sh
     #Finish
     echo "New server setup complete"
@@ -72,7 +72,7 @@ case $start in
     #Install zip and unzip tools
     apt install zip unzip
     #Get check.sh
-    wget https://www.dropbox.com/s/7rc171ypxdcyz85/check.sh -O check.sh
+    wget https://github.com/stakecube/SCC-multitool/blob/master/check.sh -O check.sh
     chmod +x check.sh
     #Finish
     echo "New server setup complete"
@@ -169,7 +169,6 @@ echo -e '\e[4mPlease enter a port number. Default is '$port' for MultiNode use u
 read port
 echo -e '\e[4mPlease enter a RPC port number. Default is '$rpcport' for MultiNode use unique\e[24m'
 read rpcport
-#Install dependancies#update here#
 #script dependency's #do not remove#
 echo "Installing install script dependency's"
 apt-get install pwgen -y
