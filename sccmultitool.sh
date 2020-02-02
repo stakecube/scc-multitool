@@ -101,7 +101,7 @@ case $start in
     rm ${coinname}.zip
     chmod +x ${coinnamecli} ${coinnamed}
     systemctl start $alias
-    echo "Binaries updated for $alias"
+    echo "Wallet updated for $alias"
     echo "Please wait a moment and then check version number with $alias getinfo"
     echo "If you are running multiple $ticker MNs you will need to restart the other nodes!"
     echo "Example restart command below"
@@ -173,6 +173,10 @@ read rpcport
 echo "Installing install script dependency's"
 apt-get install pwgen -y
 apt install zip unzip -y -y
+apt install nano
+apt install curl
+apt -y install ufw
+ufw allow ssh
 echo "Making sure your VPS is up to date"
 apt update -y
 echo "Installed script dependency's"
