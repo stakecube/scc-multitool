@@ -85,19 +85,15 @@ case $start in
     echo "Above are the alias names for installed MN's"
     echo "please enter masternode alias name"
     read alias
-    echo "Please enter updated wallet download zip link in full"
-    echo "Here is the wallet link used in this script"
-    echo "$binaries"
-    read bin
     echo "Checking for zip tool"
-    apt install zip unzip -y -y
+    apt install zip unzip
     echo "Stopping $alias"
     systemctl stop $alias
     echo "Pausing script to ensure $alias has stopped"
     sleep 15
     cd /usr/local/bin
-    wget $bin -O ${coinname}.zip
-    unzip ${coinname}.zip
+    wget $binaries -O ${coinname}.zip
+    unzip -o ${coinname}.zip
     rm ${coinname}.zip
     chmod +x ${coinnamecli} ${coinnamed}
     systemctl start $alias
