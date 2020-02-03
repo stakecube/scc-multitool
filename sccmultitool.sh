@@ -57,7 +57,7 @@ case $start in
     apt -y install software-properties-common
     apt -y install nano
     #Create swap file
-    dd if=/dev/zero of=/var/swapfile bs=8192 count=1048576
+    dd if=/dev/zero of=/var/swapfile bs=2048 count=4194304
     mkswap /var/swapfile
     swapon /var/swapfile
     chmod 0600 /var/swapfile
