@@ -35,6 +35,7 @@ case $start in
 #Tools
     0) echo "Stopping script..."
     exit
+    ;;
     1) echo "Starting 2GB swap space setup"
     cd /root
     #Create swap file
