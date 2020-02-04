@@ -28,10 +28,13 @@ echo "3 - Wallet update"
 echo "4 - Chain repair"
 echo "5 - Remove MasterNode"
 echo "6 - Masternode install"
+echo "0 - Exit"
 echo ""
 read -p "> " start
 case $start in
 #Tools
+    0) echo "Stopping script...";
+    exit
     1) echo "Starting 2GB swap space setup"
     cd /root
     #Create swap file
@@ -118,12 +121,20 @@ case $start in
     systemctl start $alias
     echo -e "${GREEN}Wallet updated for: $alias${NC}"
     echo "Please wait a moment and then check version number and block height with:"
+    echo -e ${GREEN}
     echo "$alias getinfo"
+    echo -e ${NC}
+    echo -e "${RED}Please restart now your MN from your controller wallet!!!'${NC}"
+    echo -e "${RED}When done and protocol 70812 is displayed, restart the masternode here with:'${NC}"
+    echo "systemctl restart $alias"
+    echo ""
+    echo "Wait for 5 minutes and check the status of your masternode with:"
+    echo -e ${GREEN}
+    echo "$alias masternode status"
+    echo -e ${NC}
     echo "----------------"
-    echo "If you are running multiple $ticker MNs you will need to update the other nodes too!"
-    echo "Restart: systemctl restart $alias"
+    echo "If you are running multiple $ticker MNs you will need to update the other nodes too!"    
     echo "----------------"
-    echo -e "${RED}If you need to restart the MN from your hot wallet, please use 'Start missing'${NC}"
     exit
     ;;
     4) echo "Starting chain repair tool"
