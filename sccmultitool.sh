@@ -120,19 +120,21 @@ case $start in
     rm ${coinname}.zip
     chmod +x ${coinnamecli} ${coinnamed}
     systemctl start $alias
+    echo "============================================"
     echo -e "${GREEN}Wallet updated for: $alias${NC}"
-    echo "Please wait a moment and then check version number and block height with:"
-    echo -e ${GREEN}
-    echo "$alias getinfo"
-    echo -e ${NC}
-    echo -e "${RED}Please restart now your MN from your controller wallet!!!'${NC}"
-    echo -e "${RED}When done and protocol 70812 is displayed, restart the masternode here with:'${NC}"
-    echo "systemctl restart $alias"
     echo ""
+    echo ""
+    echo "Please wait a moment and then check version number and block height with:"
+    echo -e "${GREEN}$alias getinfo"
+    echo -e "${NC}"
+    echo -e "${RED}Please restart now your MN from your controller wallet!!!"
+    echo -e "${NC}"
+    echo "When done and protocol 70812 is displayed, restart the masternode here with:"
+    echo -e "${GREEN}systemctl restart $alias"
+    echo -e "${NC}"
     echo "Wait for 5 minutes and check the status of your masternode with:"
-    echo -e ${GREEN}
-    echo "$alias masternode status"
-    echo -e ${NC}
+    echo -e "${GREEN}$alias masternode status"
+    echo -e "${NC}"
     echo "----------------"
     echo "If you are running multiple $ticker MNs you will need to update the other nodes too!"    
     echo "----------------"
