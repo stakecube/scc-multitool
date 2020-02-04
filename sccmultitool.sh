@@ -9,20 +9,27 @@ binaries='https://github.com/stakecube/SCC-multitool/releases/download/1.0.0/sta
 snapshot='https://github.com/stakecube/SCC-multitool/releases/download/1.0.0/bootstrap.zip'
 port=40000
 rpcport=39999
+currentVersion=1000002
 discord='https://discord.gg/xxjZzJE'
 pass=`pwgen 14 1 b`
 rpcuser=`pwgen 14 1 b`
 rpcpass=`pwgen 36 1 b`
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m' # No Color
+
 #Tool menu
 echo -e '\e[4mWelcome to the '$coinname' Multitools\e[24m'
-echo "Please pick a number from the list to start tool"
+echo "Please enter a number from the list and hit [ENTER] to start tool"
 echo "1 - Newserver 2GB swap. REQUIRES RESTART"
 echo "2 - Newserver 8GB swap with Contabo support. REQUIRES RESTART"
 echo "3 - Wallet update"
 echo "4 - Chain repair"
 echo "5 - Remove MasterNode"
 echo "6 - Masternode install"
-read start
+echo ""
+read -p "> " start
 case $start in
 #Tools
     1) echo "Starting 2GB swap space setup"
@@ -79,17 +86,29 @@ case $start in
     echo "Please reboot before installing any nodes!"
     exit
     ;;
-    3) echo "Starting MasterNode wallet update tool"
-    echo "Checking home directory for MN alias's"
+    3) echo "Starting MasterNode wallet update tool..."
+    echo "Checking home directory (~/home) for MN alias's..."        
+    echo "Following installed MN's found:"
+    echo -e ${GREEN}
     ls /home
-    echo "Above are the alias names for installed MN's"
-    echo "please enter masternode alias name"
-    read alias
-    echo "Checking for zip tool"
+    echo -e ${NC}
+    echo "Please enter masternode alias name you want to update and press [ENTER]:"
+    read -p "> " alias
+    echo "Checking if wallet is already updated..."
+    i="$($alias getinfo | sed -n 2p)"
+    v="${i:16:7}"
+    echo "Latest version: ${currentVersion}"
+    echo "Wallet version: ${v}"
+    if [ "$currentVersion" -eq "$v" ];then
+        echo "MN is up to date, no update needed";
+        echo "Stopping script...";
+        exit
+    fi
+    echo "Checking for zip tool..."
     apt install zip unzip
-    echo "Stopping $alias"
+    echo "Stopping $alias..."
     systemctl stop $alias
-    echo "Pausing script to ensure $alias has stopped"
+    echo "Pausing script to ensure $alias has stopped..."
     sleep 15
     cd /usr/local/bin
     wget $binaries -O ${coinname}.zip
@@ -97,11 +116,14 @@ case $start in
     rm ${coinname}.zip
     chmod +x ${coinnamecli} ${coinnamed}
     systemctl start $alias
-    echo "Wallet updated for $alias"
-    echo "Please wait a moment and then check version number with $alias getinfo"
-    echo "If you are running multiple $ticker MNs you will need to restart the other nodes!"
-    echo "Example restart command below"
-    echo "systemctl restart $alias"
+    echo -e "${GREEN}Wallet updated for: $alias${NC}"
+    echo "Please wait a moment and then check version number and block height with:"
+    echo "$alias getinfo"
+    echo "----------------"
+    echo "If you are running multiple $ticker MNs you will need to update the other nodes too!"
+    echo "Restart: systemctl restart $alias"
+    echo "----------------"
+    echo -e "${RED}If you need to restart the MN from your hot wallet, please use 'Start missing'${NC}"
     exit
     ;;
     4) echo "Starting chain repair tool"
