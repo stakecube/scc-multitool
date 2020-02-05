@@ -36,7 +36,7 @@ cat << "EOF"
 EOF
 
 #Tool menu
-echo -e '\e[4mWelcome to the StakeCube Multitools v${version}\e[24m'
+echo -e '\e[4mWelcome to the StakeCube Multitools\e[24m'
 echo "Please enter a number from the list and press [ENTER] to start tool"
 echo "1  - Newserver 2GB swap. REQUIRES RESTART"
 echo "2  - Newserver 8GB swap with Contabo support. REQUIRES RESTART"
