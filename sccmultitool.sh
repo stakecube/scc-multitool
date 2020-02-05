@@ -1,6 +1,6 @@
 #!/bin/bash
 #Coin info #update here#
-version='1.0.0.9'
+version='1.0.1.1'
 coinname=stakecube
 coinnamed=stakecubed
 coinnamecli=stakecube-cli
@@ -170,6 +170,13 @@ case $start in
         echo "Stopping script...";
         exit
     fi
+    if [ $n -gt 1 ];then
+        echo -e "${RED}More then one ${ticker} deamon found... please delete duplicates before we can continue${NC}";
+        echo "Deamon locations:"
+        echo "$(dirname $(locate -e -r /${coinnamed}$))"
+        echo "Stopping script...";
+        exit
+    fi
     daemonDir=$(dirname $(locate -e -r /${coinnamed}$))
     daemonDir+="/"
     echo -e "Found ${GREEN}$(locate -c -r /${coinnamed}$)${NC} ${coinnamed} in the following directory: $daemonDir"
@@ -186,6 +193,13 @@ case $start in
     n=$(locate -c -r /${coinnamecli}$)
     if [ $n -eq 0 ];then
         echo -e "${RED}No ${coinname} cli found...${NC}";
+        echo "Stopping script...";
+        exit
+    fi
+    if [ $n -gt 1 ];then
+        echo -e "${RED}More then one ${ticker} cli found... please delete duplicates before we can continue${NC}";
+        echo "CLI locations:"
+        echo "$(dirname $(locate -e -r /${coinnamecli}$))"
         echo "Stopping script...";
         exit
     fi
