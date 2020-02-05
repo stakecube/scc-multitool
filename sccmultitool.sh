@@ -202,11 +202,11 @@ case $start in
         echo -e "${GREEN}- Found $i${NC}"
         echo "Stopping node..."
         cd $cliDir && ./${coinnamecli} -datadir=$i stop &>/dev/null
-        sleep 10
+        sleep 1m
         echo "Ok..."           
         echo "Starting node again..."
         cd $daemonDir && ./${coinnamed} -datadir=$i &
-        sleep 5
+        sleep 1m
         echo "Ok..."
     done
     echo "============================================"
@@ -276,11 +276,11 @@ case $start in
         echo -e "${GREEN}- Found $i${NC}"
         echo "Stopping node..."
         cd $cliDir && ./${coinnamecli} -datadir=$i stop &>/dev/null
-        sleep 10
+        sleep 1m
         echo "Ok..."           
         echo "Starting node again..."
         cd $daemonDir && ./${coinnamed} -datadir=$i &
-        sleep 5
+        sleep 1m
         echo "Ok..."
     done
     echo "============================================"
