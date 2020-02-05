@@ -10,6 +10,7 @@ snapshot='https://github.com/stakecube/SCC-multitool/releases/download/1.0.0/boo
 port=40000
 rpcport=39999
 currentVersion=1000002
+currentProto=70812
 discord='https://discord.gg/xxjZzJE'
 
 apt-get install pwgen -y &>/dev/null
@@ -38,12 +39,12 @@ echo -e '\e[4mWelcome to the StakeCube Multitools\e[24m'
 echo "Please enter a number from the list and press [ENTER] to start tool"
 echo "1  - Newserver 2GB swap. REQUIRES RESTART"
 echo "2  - Newserver 8GB swap with Contabo support. REQUIRES RESTART"
-echo "3  - Wallet update (single SCC node / installed with multitool)"
-echo "31 - Wallet update (all SCC nodes / universal)"
+echo "3  - Wallet update (single ${ticker} node / installed with multitool)"
+echo "31 - Wallet update (all ${ticker} nodes / universal)"
 echo "4  - Chain repair"
 echo "5  - Remove MasterNode"
 echo "6  - Masternode install"
-echo "7  - Masternode restart"
+echo "7  - Masternode restart (restarts all ${ticker} nodes)"
 echo "0  - Exit"
 echo ""
 read -p "> " start
@@ -145,7 +146,7 @@ case $start in
     echo -e "${NC}"
     echo -e "${RED}2. Please restart now your MN from your controller wallet!!!"
     echo -e "${NC}"
-    echo "3. When done and protocol 70812 is displayed, restart the masternode here with:"
+    echo "3. When done and protocol ${currentProto} is displayed, restart the masternode here with:"
     echo -e "${GREEN}systemctl restart $alias"
     echo -e "${NC}"
     echo "4. Wait for 5 minutes and check the status of your masternode with:"
@@ -213,7 +214,7 @@ case $start in
     echo "============================================"
     echo ""
     echo -e "${RED}Please restart now your MN(s) from your controller wallet!!!${NC}"
-    echo -e "When done and protocol 70812 is displayed, restart the masternode with tool ${GREEN}7 - Masternode restart${NC}"
+    echo -e "When done and protocol ${currentProto} is displayed, restart the masternode with tool ${GREEN}7 - Masternode restart${NC}"
     exit
     ;;
     4) echo "Starting chain repair tool"
