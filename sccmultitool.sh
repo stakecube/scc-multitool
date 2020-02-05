@@ -11,6 +11,8 @@ port=40000
 rpcport=39999
 currentVersion=1000002
 discord='https://discord.gg/xxjZzJE'
+
+apt-get install pwgen -y &>/dev/null
 pass=`pwgen 14 1 b`
 rpcuser=`pwgen 14 1 b`
 rpcpass=`pwgen 36 1 b`
@@ -19,16 +21,30 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m' # No Color
 
+clear
+cat << "EOF" 
+   _____ _        _         _____      _          
+  / ____| |      | |       / ____|    | |         
+ | (___ | |_ __ _| | _____| |    _   _| |__   ___ 
+  \___ \| __/ _` | |/ / _ \ |   | | | | '_ \ / _ \
+  ____) | || (_| |   <  __/ |___| |_| | |_) |  __/
+ |_____/ \__\__,_|_|\_\___|\_____\__,_|_.__/ \___|
+
+
+EOF
+
 #Tool menu
-echo -e '\e[4mWelcome to the '$coinname' Multitools\e[24m'
-echo "Please enter a number from the list and hit [ENTER] to start tool"
-echo "1 - Newserver 2GB swap. REQUIRES RESTART"
-echo "2 - Newserver 8GB swap with Contabo support. REQUIRES RESTART"
-echo "3 - Wallet update"
-echo "4 - Chain repair"
-echo "5 - Remove MasterNode"
-echo "6 - Masternode install"
-echo "0 - Exit"
+echo -e '\e[4mWelcome to the StakeCube Multitools\e[24m'
+echo "Please enter a number from the list and press [ENTER] to start tool"
+echo "1  - Newserver 2GB swap. REQUIRES RESTART"
+echo "2  - Newserver 8GB swap with Contabo support. REQUIRES RESTART"
+echo "3  - Wallet update (single SCC node / installed with multitool)"
+echo "31 - Wallet update (all SCC nodes / universal)"
+echo "4  - Chain repair"
+echo "5  - Remove MasterNode"
+echo "6  - Masternode install"
+echo "7  - Masternode restart"
+echo "0  - Exit"
 echo ""
 read -p "> " start
 case $start in
@@ -90,7 +106,7 @@ case $start in
     echo "Please reboot before installing any nodes!"
     exit
     ;;
-    3) echo "Starting MasterNode wallet update tool..."
+    3) echo "Starting single node update tool..."
     echo "Checking home directory (~/home) for MN alias's..."        
     echo "Following installed MN's found:"
     echo -e ${GREEN}
@@ -109,7 +125,7 @@ case $start in
         exit
     fi
     echo "Checking for zip tool..."
-    apt install zip unzip
+    apt install zip unzip -y
     echo "Stopping $alias..."
     systemctl stop $alias
     echo "Pausing script to ensure $alias has stopped..."
@@ -140,6 +156,66 @@ case $start in
     echo "----------------"
     exit
     ;;
+    31) echo "Starting multi node update tool..."
+    apt-get install locate -y &>/dev/null
+    #replace with new version
+    echo "Starting to search for ${coinname} deamon (${coinnamed})..."
+    updatedb
+    n=$(locate -c -r /${coinnamed}$)
+    if [ $n -eq 0 ];then
+        echo -e "${RED}No ${coinname} deamon found...${NC}";
+        echo "Stopping script...";
+        exit
+    fi
+    daemonDir=$(dirname $(locate -e -r /${coinnamed}$))
+    daemonDir+="/"
+    echo -e "Found ${GREEN}$(locate -c -r /${coinnamed}$)${NC} ${coinnamed} in the following directory: $daemonDir"
+    echo "Checking for zip tool..."
+    apt install zip unzip -y &>/dev/null
+    echo "Ok..."
+    echo "Start downloading latest deamon..."
+    cd $daemonDir
+    wget $binaries -O ${coinname}.zip &>/dev/null
+    unzip -o ${coinname}.zip &>/dev/null
+    rm ${coinname}.zip &>/dev/null    
+    echo -e "${GREEN}Deamon replaced...${NC}"
+    echo "Starting to search for ${coinname} cli (${coinnamecli})..."  
+    n=$(locate -c -r /${coinnamecli}$)
+    if [ $n -eq 0 ];then
+        echo -e "${RED}No ${coinname} cli found...${NC}";
+        echo "Stopping script...";
+        exit
+    fi
+    cliDir=$(dirname $(locate -e -r /${coinnamecli}$))
+    cliDir+="/"
+    echo -e "Found ${GREEN}$(locate -c -r /${coinnamecli}$)${NC} ${coinnamecli} in the following directory: $cliDir"    
+    echo "Start downloading latest cli..."
+    cd $cliDir   
+    wget $binaries -O ${coinname}.zip &>/dev/null
+    unzip -o ${coinname}.zip &>/dev/null
+    rm ${coinname}.zip &>/dev/null    
+    echo -e "${GREEN}CLI replaced...${NC}"
+    chmod +x $daemonDir${coinnamed} $cliDir${coinnamecli} &>/dev/null
+    echo "Start to search for all instances and restarting deamons..."
+    for i in $(find / -xdev 2>/dev/null -name ".${coindir}"); do
+        echo -e "${GREEN}- Found $i${NC}"
+        echo "Stopping node..."
+        cd $cliDir && ./${coinnamecli} -datadir=$i stop &>/dev/null
+        sleep 10
+        echo "Ok..."           
+        echo "Starting node again..."
+        cd $daemonDir && ./${coinnamed} -datadir=$i &
+        sleep 5
+        echo "Ok..."
+    done
+    echo "============================================"
+    echo -e "${GREEN}DONE${NC}"
+    echo "============================================"
+    echo ""
+    echo -e "${RED}Please restart now your MN(s) from your controller wallet!!!${NC}"
+    echo -e "When done and protocol 70812 is displayed, restart the masternode with tool ${GREEN}7 - Masternode restart${NC}"
+    exit
+    ;;
     4) echo "Starting chain repair tool"
     echo "Checking home directory for MN alias's"
     ls /home
@@ -167,7 +243,7 @@ case $start in
     echo "Snapshot updated for $alias"
     echo "Please wait for a while.. and then use $alias getinfo to check block height against explorer"
     exit
-    ;;
+    ;;    
     5) echo "Starting Removal tool"
     echo "Checking home directory for MN alias's"
     ls /home
@@ -186,7 +262,30 @@ case $start in
     echo "$alias removed"
     exit
     ;;
-    6)  echo "Starting $ticker MasterNode install"
+    6) echo "Starting $ticker MasterNode install"
+    ;;
+    7) echo "Starting restart tool..."
+    apt-get install locate -y &>/dev/null
+    daemonDir=$(dirname $(locate -e -r /${coinnamed}$))
+    daemonDir+="/"
+    cliDir=$(dirname $(locate -e -r /${coinnamecli}$))
+    cliDir+="/"
+    echo "Start to search for all instances and restarting deamons..."
+    for i in $(find / -xdev 2>/dev/null -name ".${coindir}"); do
+        echo -e "${GREEN}- Found $i${NC}"
+        echo "Stopping node..."
+        cd $cliDir && ./${coinnamecli} -datadir=$i stop &>/dev/null
+        sleep 10
+        echo "Ok..."           
+        echo "Starting node again..."
+        cd $daemonDir && ./${coinnamed} -datadir=$i &
+        sleep 5
+        echo "Ok..."
+    done
+    echo "============================================"
+    echo -e "${GREEN}DONE${NC}"
+    echo "============================================"
+    exit
     ;;
     esac
 #get user input alias and bind set varible#
@@ -203,7 +302,6 @@ echo -e '\e[4mPlease enter a RPC port number. Default is '$rpcport' for MultiNod
 read rpcport
 #script dependency's #do not remove#
 echo "Installing install script dependency's"
-apt-get install pwgen -y
 apt install zip unzip -y -y
 apt install nano
 apt install curl
