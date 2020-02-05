@@ -1,5 +1,6 @@
 #!/bin/bash
 #Coin info #update here#
+version='1.0.0.9'
 coinname=stakecube
 coinnamed=stakecubed
 coinnamecli=stakecube-cli
@@ -35,7 +36,7 @@ cat << "EOF"
 EOF
 
 #Tool menu
-echo -e '\e[4mWelcome to the StakeCube Multitools\e[24m'
+echo -e '\e[4mWelcome to the StakeCube Multitools v${version}\e[24m'
 echo "Please enter a number from the list and press [ENTER] to start tool"
 echo "1  - Newserver 2GB swap. REQUIRES RESTART"
 echo "2  - Newserver 8GB swap with Contabo support. REQUIRES RESTART"
@@ -45,6 +46,7 @@ echo "4  - Chain repair"
 echo "5  - Remove MasterNode"
 echo "6  - Masternode install"
 echo "7  - Masternode restart (restarts all ${ticker} nodes)"
+echo "99 - Show multitool version"
 echo "0  - Exit"
 echo ""
 read -p "> " start
@@ -287,6 +289,9 @@ case $start in
     echo -e "${GREEN}DONE${NC}"
     echo "============================================"
     exit
+    ;;
+    99) echo ${version}
+    exit;
     ;;
     esac
 #get user input alias and bind set varible#
