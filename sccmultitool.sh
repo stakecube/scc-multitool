@@ -1,6 +1,6 @@
 #!/bin/bash
 #Coin info #update here#
-version='1.0.2.0'
+version='1.0.3.0'
 coinname=stakecube
 coinnamed=stakecubed
 coinnamecli=stakecube-cli
@@ -47,6 +47,7 @@ echo "41 - Chain repair (all ${ticker} nodes)"
 echo "5  - Remove MasterNode"
 echo "6  - Masternode install"
 echo "7  - Masternode restart (restarts all ${ticker} nodes)"
+echo "8  - Check health (all ${ticker} nodes)"
 echo "99 - Show multitool version"
 echo "0  - Exit"
 echo ""
@@ -341,6 +342,30 @@ case $start in
     echo "============================================"
     echo -e "${GREEN}DONE${NC}"
     echo "============================================"
+    exit
+    ;;
+    8) echo "Starting health check tool"
+    echo "Checking home directory (~/home) for MN alias's..."
+    n=$(ls /home -lR | grep ^d | wc -l)
+    if [ $n -eq 0 ];then
+        echo -e "${RED}No MNs found in home directory...${NC}";
+        echo "Stopping script...";
+        exit
+    fi 
+    echo "Following installed MN's found:"
+    echo -e ${GREEN}
+    ls /home
+    echo -e ${NC}    
+    echo "Start check for all MNs..."
+    for i in $(ls /home/); do
+        echo -e "${GREEN}$i${NC}"
+        echo "MN status: $($i getmasternodestatus)"
+        echo "Blocks: $($i getblockcount)"
+        echo "Connections: $($i getconnectioncount)"
+    done
+    echo "============================================"
+    echo -e "${GREEN}DONE${NC}"
+    echo "============================================"    
     exit
     ;;
     99) echo ${version}
