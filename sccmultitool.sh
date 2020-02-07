@@ -1,6 +1,6 @@
 #!/bin/bash
 #Coin info #update here#
-version='1.0.1.2'
+version='1.0.2.0'
 coinname=stakecube
 coinnamed=stakecubed
 coinnamecli=stakecube-cli
@@ -43,6 +43,7 @@ echo "2  - Newserver 8GB swap with Contabo support. REQUIRES RESTART"
 echo "3  - Wallet update (single ${ticker} node / installed with multitool)"
 echo "31 - Wallet update (all ${ticker} nodes / universal)"
 echo "4  - Chain repair"
+echo "41 - Chain repair (all ${ticker} nodes)"
 echo "5  - Remove MasterNode"
 echo "6  - Masternode install"
 echo "7  - Masternode restart (restarts all ${ticker} nodes)"
@@ -260,7 +261,45 @@ case $start in
     echo "Snapshot updated for $alias"
     echo "Please wait for a while.. and then use $alias getinfo to check block height against explorer"
     exit
-    ;;    
+    ;;
+    41) echo "Starting chain repair all tool"
+    echo "Checking home directory (~/home) for MN alias's..."
+    n=$(ls /home -lR | grep ^d | wc -l)
+    if [ $n -eq 0 ];then
+        echo -e "${RED}No MNs found in home directory...${NC}";
+        echo "Stopping script...";
+        exit
+    fi 
+    echo "Following installed MN's found:"
+    echo -e ${GREEN}
+    ls /home
+    echo -e ${NC}    
+    echo "Start repair process for all MNs..."
+    echo "Using: ${snapshot}"
+    echo "Checking for zip tool"
+    apt install zip unzip -y &>/dev/null
+    for i in $(ls /home/); do
+        echo "Stopping $i..."
+        systemctl stop $i
+        echo "Pausing script to ensure $i has stopped..."
+        sleep 15
+        cd /home/$i
+        echo "Start repair for $i..."
+        wget $snapshot -O ${coindir}.zip &>/dev/null
+        find /home/$i/.${coindir}/* ! -name "wallet.dat" ! -name "*.conf" -delete
+        unzip ${coindir}.zip &>/dev/null
+        rm ${coindir}.zip
+        cd /home
+        chown -R $i $i
+        echo "Chain repaired for $i..."
+        echo "Starting node again..."
+        systemctl start $i
+    done
+    echo "============================================"
+    echo -e "${GREEN}DONE${NC}"
+    echo "============================================"    
+    exit
+    ;;
     5) echo "Starting Removal tool"
     echo "Checking home directory for MN alias's"
     ls /home
