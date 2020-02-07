@@ -363,13 +363,13 @@ case $start in
         echo -e "${GREEN}$i${NC}"
         echo "MN status: $($i getmasternodestatus)"
         bc=$($i getblockcount)
-        if [ $b -eq $bc];then
+        if [ $b -eq $bc ];then
             echo -e "Blocks: ${GREEN}$bc${NC}"
         else 
             echo -e "Blocks: ${RED}$bc${NC}"
         fi
         cc=$($i getconnectioncount)
-        if [ $cc -eq 0];then
+        if [ $cc -eq 0 ];then
             echo -e "Connections: ${RED}$cc${NC}"
         else 
             echo -e "Connections: ${GREEN}$cc${NC}"
