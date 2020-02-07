@@ -1,6 +1,6 @@
 #!/bin/bash
 #Coin info #update here#
-version='1.0.3.2'
+version='1.0.4.0'
 coinname=stakecube
 coinnamed=stakecubed
 coinnamecli=stakecube-cli
@@ -48,6 +48,7 @@ echo "5  - Remove MasterNode"
 echo "6  - Masternode install"
 echo "7  - Masternode restart (restarts all ${ticker} nodes)"
 echo "8  - Check health (all ${ticker} nodes)"
+echo "9  - Add seed-nodes (to alias)"
 echo "99 - Show multitool version"
 echo "0  - Exit"
 echo ""
@@ -378,6 +379,22 @@ case $start in
     echo "============================================"
     echo -e "${GREEN}DONE${NC}"
     echo "============================================"    
+    exit
+    ;;
+    9) echo "Starting add seednodes tool"
+    echo "Checking home directory (~/home) for MN alias's..."        
+    echo "Following installed MN's found:"
+    echo -e ${GREEN}
+    ls /home
+    echo -e ${NC}
+    echo "Please enter MN alias name and press [ENTER]:"
+    read -p "> " alias
+    echo "Start add nodes..."
+    $alias addnode 95.179.165.19 add
+    $alias addnode 209.250.224.166 add
+    $alias addnode 108.61.212.198 add
+    $alias addnode 78.141.211.79 add
+    $alias addnode 95.179.209.111 add
     exit
     ;;
     99) echo ${version}
