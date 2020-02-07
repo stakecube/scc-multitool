@@ -1,6 +1,6 @@
 #!/bin/bash
 #Coin info #update here#
-version='1.0.3.1'
+version='1.0.3.2'
 coinname=stakecube
 coinnamed=stakecubed
 coinnamecli=stakecube-cli
@@ -345,6 +345,8 @@ case $start in
     exit
     ;;
     8) echo "Starting health check tool"
+    echo "Enter current block from explorer and press [ENTER]:"
+    read -p "> " b
     echo "Checking home directory (~/home) for MN alias's..."
     n=$(ls /home -lR | grep ^d | wc -l)
     if [ $n -eq 0 ];then
@@ -360,8 +362,18 @@ case $start in
     for i in $(ls /home/); do
         echo -e "${GREEN}$i${NC}"
         echo "MN status: $($i getmasternodestatus)"
-        echo "Blocks: $($i getblockcount)"
-        echo "Connections: $($i getconnectioncount)"
+        bc=$($i getblockcount)
+        if [ $b -eq $bc];then
+            echo -e "Blocks: ${GREEN}$bc${NC}"
+        else 
+            echo -e "Blocks: ${RED}$bc${NC}"
+        fi
+        cc=$($i getconnectioncount)
+        if [ $cc -eq 0];then
+            echo -e "Connections: ${RED}$cc${NC}"
+        else 
+            echo -e "Connections: ${GREEN}$cc${NC}"
+        fi
     done
     echo "============================================"
     echo -e "${GREEN}DONE${NC}"
