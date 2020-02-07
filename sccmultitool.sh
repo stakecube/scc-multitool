@@ -395,6 +395,7 @@ case $start in
     $alias addnode 108.61.212.198 add
     $alias addnode 78.141.211.79 add
     $alias addnode 95.179.209.111 add
+    echo "done..."
     exit
     ;;
     99) echo ${version}
