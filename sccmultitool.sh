@@ -1,6 +1,6 @@
 #!/bin/bash
 #Coin info #update here#
-version='1.0.1.1'
+version='1.0.1.2'
 coinname=stakecube
 coinnamed=stakecubed
 coinnamecli=stakecube-cli
@@ -234,15 +234,15 @@ case $start in
     exit
     ;;
     4) echo "Starting chain repair tool"
-    echo "Checking home directory for MN alias's"
+    echo "Checking home directory (~/home) for MN alias's..."        
+    echo "Following installed MN's found:"
+    echo -e ${GREEN}
     ls /home
-    echo "Above are the alias names for installed MN's"
-    echo "Please enter MN alias name"
-    read alias
-    echo "Please enter bootstrap/snapshot zip link in full"
-    echo "Here is the snapshot this script uses for MN install"
-    echo "$snapshot"
-    read snap
+    echo -e ${NC}
+    echo "Please enter MN alias name and press [ENTER]:"
+    read -p "> " alias
+    echo "Start repair process..."
+    echo "Using: ${snapshot}"
     echo "Checking for zip tool"
     apt install zip unzip -y -y
     echo "Stopping $alias"
@@ -250,7 +250,7 @@ case $start in
     echo "Pausing script to ensure $alias has stopped"
     sleep 15
     cd /home/$alias
-    wget $snap -O ${coindir}.zip
+    wget $snapshot -O ${coindir}.zip
     find /home/$alias/.${coindir}/* ! -name "wallet.dat" ! -name "*.conf" -delete
     unzip ${coindir}.zip
     rm ${coindir}.zip
