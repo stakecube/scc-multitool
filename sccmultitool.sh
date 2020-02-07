@@ -1,6 +1,6 @@
 #!/bin/bash
 #Coin info #update here#
-version='1.0.3.0'
+version='1.0.3.1'
 coinname=stakecube
 coinnamed=stakecubed
 coinnamecli=stakecube-cli
@@ -369,7 +369,7 @@ case $start in
     exit
     ;;
     99) echo ${version}
-    exit;
+    exit
     ;;
     esac
 #get user input alias and bind set varible#
