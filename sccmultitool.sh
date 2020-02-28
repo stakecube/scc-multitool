@@ -1,6 +1,6 @@
 #!/bin/bash
 #Coin info #update here#
-version='1.0.4.0'
+version='1.1.0.0'
 coinname=stakecube
 coinnamed=stakecubed
 coinnamecli=stakecube-cli
@@ -10,8 +10,8 @@ binaries='https://github.com/stakecube/SCC-multitool/releases/download/1.0.0/sta
 snapshot='https://github.com/stakecube/SCC-multitool/releases/download/1.0.0/bootstrap.zip'
 port=40000
 rpcport=39999
-currentVersion=1000002
-currentProto=70812
+currentVersion=1030000
+currentProto=70813
 discord='https://discord.gg/xxjZzJE'
 
 apt-get install pwgen -y &>/dev/null
