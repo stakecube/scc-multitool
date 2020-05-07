@@ -1,13 +1,13 @@
 #!/bin/bash
 #Coin info #update here#
-version='1.1.0.0'
+version='1.1.0.1'
 coinname=stakecube
 coinnamed=stakecubed
 coinnamecli=stakecube-cli
 ticker=SCC
 coindir=StakeCubeCore
-binaries='https://github.com/stakecube/SCC-multitool/releases/download/1.0.0/stakecube-daemon-U16-U18.zip'
-snapshot='https://github.com/stakecube/SCC-multitool/releases/download/1.0.0/bootstrap.zip'
+binaries='https://github.com/stakecube/StakeCubeCoin/releases/download/v1.3.1.0/stakecube-daemon-U16-U18.zip'
+snapshot='https://github.com/stakecube/StakeCubeCoin/releases/download/v1.3.1.0/bootstrap.zip'
 port=40000
 rpcport=39999
 currentVersion=1030000
