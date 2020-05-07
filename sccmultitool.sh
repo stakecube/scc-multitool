@@ -533,7 +533,7 @@ echo "MN key = $key"
 echo "alias password = $pass"
 echo ""
 echo -e '\e[4mPlease note that if you are installing multiple MNs you will need to setup swap space\e[24m'
-echo "Wait for sync and then use $alias getinfo or $alias getmasternodestatus to check node"
+echo "Wait for sync and then use $alias getinfo or $alias masternode status to check node"
 echo -e '\e[4mEnter the information below into your masternode.conf file in control wallet with the addition of the collateral_output_txid and TX index\e[24m'
 echo "$alias $ipadd:40000 $key"
 echo -e '\e[4mYou must use the default port with your control/desktop wallets masternode.conf file'
