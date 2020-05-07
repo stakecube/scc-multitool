@@ -10,7 +10,7 @@ binaries='https://github.com/stakecube/StakeCubeCoin/releases/download/v1.3.1.0/
 snapshot='https://github.com/stakecube/StakeCubeCoin/releases/download/v1.3.1.0/bootstrap.zip'
 port=40000
 rpcport=39999
-currentVersion=1030000
+currentVersion=1030100
 currentProto=70813
 discord='https://discord.gg/xxjZzJE'
 
