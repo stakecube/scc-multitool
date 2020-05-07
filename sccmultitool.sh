@@ -362,7 +362,7 @@ case $start in
     echo "Start check for all MNs..."
     for i in $(ls /home/); do
         echo -e "${GREEN}$i${NC}"
-        echo "MN status: $($i getmasternodestatus)"
+        echo "MN status: $($i masternode status)"
         bc=$($i getblockcount)
         if [ $b -eq $bc ];then
             echo -e "Blocks: ${GREEN}$bc${NC}"
