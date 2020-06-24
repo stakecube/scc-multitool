@@ -9,7 +9,7 @@ echo "Starting node check"
 echo
  
 echo -e "1) $node1 \c"
-$node1 getmasternodestatus
+$node1 masternode status
 echo -e "Blocks: \c"
 $node1 getblockcount
 echo -e "Connections: \c"
@@ -17,7 +17,7 @@ $node1 getconnectioncount
 echo
  
 echo -e "2) $node2 \c"
-$node2 getmasternodestatus
+$node2 masternode status
 echo -e "Blocks: \c"
 $node2 getblockcount
 echo -e "Connections: \c"
@@ -25,7 +25,7 @@ $node2 getconnectioncount
 echo
  
 echo -e "3) $node3 \c"
-$node3 getmasternodestatus
+$node3 masternode status
 echo -e "Blocks: \c"
 $node3 getblockcount
 echo -e "Connections: \c"
@@ -33,7 +33,7 @@ $node3 getconnectioncount
 echo
  
 echo -e "4) $node4 \c"
-$node4 getmasternodestatus
+$node4 masternode status
 echo -e "Blocks: \c"
 $node4 getblockcount
 echo -e "Connections: \c"
@@ -41,7 +41,7 @@ $node4 getconnectioncount
 echo
  
 echo -e "5) $node5 \c"
-$node5 getmasternodestatus
+$node5 masternode status
 echo -e "Blocks: \c"
 $node5 getblockcount
 echo -e "Connections: \c"
