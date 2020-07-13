@@ -1,16 +1,16 @@
 #!/bin/bash
 #Coin info #update here#
-version='2.0.0.0'
+version='2.0.1.0'
 coinname=stakecube
 coinnamed=stakecubed
 coinnamecli=stakecube-cli
 ticker=SCC
 coindir=StakeCubeCore
-binaries='https://github.com/stakecube/StakeCubeCoin/releases/download/v2.0.0.0/multitool-binaries.zip'
-snapshot='https://github.com/stakecube/StakeCubeCoin/releases/download/v2.0.0.0/bootstrap.zip'
+binaries='https://github.com/stakecube/StakeCubeCoin/releases/download/v2.0.1/multitool-binaries.zip'
+snapshot='https://github.com/stakecube/StakeCubeCoin/releases/download/v2.0.1/bootstrap.zip'
 port=40000
 rpcport=39999
-currentVersion=2000000
+currentVersion=2000100
 currentProto=70814
 discord='https://discord.gg/xxjZzJE'
 
@@ -231,9 +231,6 @@ case $start in
     echo "============================================"
     echo -e "${GREEN}DONE${NC}"
     echo "============================================"
-    echo ""
-    echo -e "${RED}Please restart now your MN(s) from your controller wallet!!!${NC}"
-    echo -e "When done and protocol ${currentProto} is displayed, restart the masternode with tool ${GREEN}7 - Masternode restart${NC}"
     exit
     ;;
     4) echo "Starting chain repair tool"
