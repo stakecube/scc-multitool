@@ -1,17 +1,17 @@
 #!/bin/bash
 #Coin info #update here#
-version='2.0.2.0'
+version='2.1.0'
 coinname=stakecube
 coinnamed=stakecubed
 coinnamecli=stakecube-cli
 ticker=SCC
 coindir=StakeCubeCore
-binaries='https://github.com/stakecube/StakeCubeCoin/releases/download/v2.0.2/multitool-binaries.zip'
-snapshot='https://github.com/stakecube/StakeCubeCoin/releases/download/v2.0.2/bootstrap.zip'
+binaries='https://github.com/stakecube/StakeCubeCoin/releases/download/v2.1.0/multitool-binaries.zip'
+snapshot='https://github.com/stakecube/StakeCubeCoin/releases/download/v2.1.0/bootstrap.zip'
 port=40000
 rpcport=39999
-currentVersion=2000200
-currentProto=70814
+currentVersion=2010000
+currentProto=70815
 discord='https://discord.gg/xxjZzJE'
 
 apt-get install pwgen -y &>/dev/null
