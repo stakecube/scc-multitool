@@ -1,8 +1,9 @@
-SCC Multi Tool script tested on Linux 16.04
+SCC Multi Tool script tested on Linux 18.04
 
 SCC MN install guide
 
-https://stakecube.net/app/download/guides/SCC_node_setup_guide_v2.pdf
+*link to be updated*
+
 
 Commands to install sccmultitool.sh
 
@@ -12,23 +13,31 @@ chmod +x sccmultitool.sh
 
 ./sccmultitool.sh
 
-Alias = Name of your MN, Must all be in lower case with no spaces or special characters
 
-MN key = get this from your control wallets console using the command 
-createmasternodekey
-note this and enter carefully
+New server note
+New server and IPv6 setup only needs to be set up once per server.
 
-Port = Default port is 40000 and must always be set to 40000 in masternode.conf on control side even if different on VPS!
-
-RPCport = Default RPCport is 39999
 
 MultiNode note
+To run multiple MN's on one server you will need to use the IPv6 option when promted in option 6 enter a unique Alias, BLS secret key, and rpc port each time you run masternode install tool.
 
-Swap space only needs to be set up once per server.
-To run multiple MN's on one server sharing the same IP on the VPS side you will need to enter a unique Alias, MN key, port and rpc port each time you run sccmultitool.sh.
-When setting up your masternode.conf file in your control wallet you will always need to set the port number to 40000.
 
-Check.sh instructions 
+Masternode install note
+
+Alias = Name of your MN, Must all be in lower case with no spaces or special characters and also include "scc" in the name for multi tools
+
+secret key= get this from your control wallets console using the command
+
+bls generate
+
+note this info and enter carefully
+
+Port = Default port is 40000 and is set for you
+
+RPCport = Default RPCport is 39999 use unique for multinode
+
+
+Check.sh instructions (This will be replaced with the health check and repair tool soon)
 
 Updated check.sh file for new commands if you are using an older version of this script
 wget https://github.com/stakecube/SCC-multitool/raw/master/check.sh
