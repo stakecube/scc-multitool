@@ -1,6 +1,6 @@
 #!/bin/bash
 #Coin info
-version=3.0
+version="3.0"
 coinname=stakecubecoin
 coinnamed=sccd
 coinnamecli=scc-cli
@@ -27,11 +27,11 @@ cat << "EOF"
 EOF
 
 #Tool menu
-echo -e '\e[4mWelcome to the StakeCube Multitools ${version}\e[24m'
+echo -e '\e[4mWelcome to the StakeCube Multitools '${version}' \e[24m'
 echo "Please enter a number from the list and press [ENTER] to start tool"
 echo "1  - Newserver 2GB swap + IPv6 setup. REQUIRES RESTART"
-echo "2  - Newserver 8GB swap + IPv6 setup + Contabo support. REQUIRES RESTART"
-echo "3  - IPv6 setup"
+echo "2  - Newserver 8GB swap + IPv6 setup. REQUIRES RESTART"
+echo "3  - Enable IPv6"
 echo "4  - Wallet update (all ${ticker} nodes)"
 echo "5  - Remove MasterNode"
 echo "6  - Masternode install"
