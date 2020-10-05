@@ -7,7 +7,7 @@ SCC MN install guide
 
 Commands to install sccmultitool.sh
 
-wget https://github.com/stakecube/SCC-multitool/raw/master/sccmultitool.sh
+wget https://raw.githubusercontent.com/stakecube/SCC-multitool/master/sccmultitool.sh
 
 chmod +x sccmultitool.sh
 
