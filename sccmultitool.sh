@@ -56,6 +56,7 @@ case $start in
     echo "/var/swapfile none swap sw 0 0" >> /etc/fstab
     #Update linux
     apt-get update && apt-get -y upgrade
+    apt -y install ufw
     apt -s dist-upgrade | grep "^Inst" | grep -i securi | awk -F " " {'print $2'} | xargs apt -y install
     #Allow SSH and enable firewall
     ufw allow 22/tcp comment "SSH"
