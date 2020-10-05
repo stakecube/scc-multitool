@@ -7,7 +7,7 @@ SCC MN install guide
 
 Commands to install sccmultitool.sh
 
-wget https://raw.githubusercontent.com/stakecube/SCC-multitool/master/sccmultitool.sh
+wget https://github.com/stakecube/SCC-multitool/blob/master/sccmultitool.sh
 
 chmod +x sccmultitool.sh
 
@@ -40,7 +40,7 @@ RPCport = Default RPCport is 39999 use unique for multinode
 Check.sh instructions (This will be replaced with the health check and repair tool soon)
 
 Updated check.sh file for new commands if you are using an older version of this script
-wget https://github.com/stakecube/SCC-multitool/raw/master/check.sh
+wget https://github.com/stakecube/SCC-multitool/blob/master/check.sh
 
 chmod +x check.sh
 
