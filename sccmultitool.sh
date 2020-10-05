@@ -339,6 +339,7 @@ cd /home/$alias
 wget ${snapshot} -O ${coinname}.zip
 unzip ${coinname}.zip
 echo "$coinname dir setup"
+rm ${coinanme}.zip
 #make conf file
 echo "Creating $coinname conf file"
 cd .$coindir
