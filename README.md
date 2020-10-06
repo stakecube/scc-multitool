@@ -1,8 +1,13 @@
 SCC Multi Tool script tested on Linux 18.04
+(Automatic IPv6 configuration is valid only for U18 contabo servers)
 
 SCC MN install guide
 
-*link to be updated*
+Quick guide
+https://stakecube.info/stakecubecoin-dip3-masternode-setup-quick-guide/
+
+Full guide
+https://stakecube.info/stakecubecoin-dip3-masternode-setup-full-guide/
 
 
 Commands to install sccmultitool.sh
