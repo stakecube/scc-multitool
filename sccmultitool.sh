@@ -299,7 +299,7 @@ cd /usr/local/bin
 wget ${binaries} -O ${coinname}.zip
 unzip ${coinname}.zip
 chmod +x ${coinnamecli} ${coinnamed}
-rm ${coinanme}.zip
+rm ${coinname}.zip
 echo "$alias node binaries installed"
 fi
 #Node intergration
@@ -340,7 +340,7 @@ cd /home/$alias
 wget ${snapshot} -O ${coinname}.zip
 unzip ${coinname}.zip
 echo "$coinname dir setup"
-rm ${coinanme}.zip
+rm ${coinname}.zip
 #make conf file
 echo "Creating $coinname conf file"
 cd .$coindir
