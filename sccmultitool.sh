@@ -33,10 +33,11 @@ echo "1  - Newserver 2GB swap + IPv6 setup. REQUIRES RESTART"
 echo "2  - Newserver 8GB swap + IPv6 setup. REQUIRES RESTART"
 echo "3  - Enable IPv6"
 echo "4  - Wallet update (all ${ticker} nodes)"
-echo "5  - Remove MasterNode"
-echo "6  - Masternode install"
-echo "7  - Masternode stop/start/restart (stop/start/restart all ${ticker} nodes)"
-echo "8  - Check health and repair (all ${ticker} nodes)- COMING SOON!"
+echo "5  - Chain repair tool (single ${ticker} node"
+echo "6  - Remove MasterNode"
+echo "7  - Masternode install"
+echo "8  - Masternode stop/start/restart (stop/start/restart all ${ticker} nodes)"
+echo "9  - Check health and repair (all ${ticker} nodes)- COMING SOON!"
 echo "0  - Exit"
 echo ""
 read -p "> " start
@@ -158,7 +159,31 @@ case $start in
 	echo "Wallet update tool finished"
 	exit
 	;;
-    5) echo "Starting Removal tool"
+	5) echo "Starting chain repair tool"
+	echo "Checking home directory for MN alias's"
+	ls /home
+	echo "Above are the alias names for installed MN's"
+	echo "Please enter MN alias name"
+	read alias
+	echo "Stopping $alias"
+	systemctl stop $alias
+	sleep 5
+	cd /home/$alias
+	find /home/$alias/.${coindir}/* ! -name "wallet.dat" ! -name "*.conf" -delete
+	echo "Downloading and replacing chain files"
+	wget -qq ${snapshot} -O ${coindir}.zip
+	unzip ${coindir}.zip
+	chown -R $alias /home/${alias}
+	echo "Removing downloaded files"
+	rm /home/${alias}/${coindir}.zip
+	echo "Starting $alias after repair"
+	systemctl start ${alias}.service
+	sleep 5
+	echo "Chain repair tool finished"
+	echo "Please wait for a moment.. and use $alias -getinfo to check block height agaist explorer"
+	exit
+	;;	
+    6) echo "Starting Removal tool"
     echo "Checking home directory for MN alias's"
     ls /home
     echo "Above are the alias names for installed MN's"
@@ -191,9 +216,9 @@ case $start in
     echo "$alias removed"
     exit
     ;;
-    6) echo "Starting $ticker MasterNode install"
+    7) echo "Starting $ticker MasterNode install"
     ;;
-    7) echo "Starting stop/start tool..."
+    8) echo "Starting stop/start tool..."
 	echo "Please enter <stop> to stop all ${ticker} nodes"
 	echo "Please enter <start> to start all ${ticker} nodes"
 	echo "Please enter <restart> to restart all ${ticker} nodes"
@@ -219,7 +244,7 @@ case $start in
 	echo "Wallet update tool finished"
 	exit
     ;;
-	8) echo "Starting health check and repair tool"
+	9) echo "Starting health check and repair tool"
 	echo "Tool coming soon! Now closing.."
 	exit
     ;;
