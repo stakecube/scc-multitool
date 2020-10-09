@@ -33,7 +33,7 @@ echo "1  - Newserver 2GB swap + IPv6 setup. REQUIRES RESTART"
 echo "2  - Newserver 8GB swap + IPv6 setup. REQUIRES RESTART"
 echo "3  - Enable IPv6"
 echo "4  - Wallet update (all ${ticker} nodes)"
-echo "5  - Chain repair tool (single ${ticker} node"
+echo "5  - Chain/PoSe maintenance tool (single ${ticker} node"
 echo "6  - Remove MasterNode"
 echo "7  - Masternode install"
 echo "8  - Masternode stop/start/restart (stop/start/restart all ${ticker} nodes)"
@@ -159,7 +159,7 @@ case $start in
 	echo "Wallet update tool finished"
 	exit
 	;;
-	5) echo "Starting chain repair tool"
+	5) echo "Starting chain repair/PoSe maintenance tool"
 	echo "Checking home directory for MN alias's"
 	ls /home
 	echo "Above are the alias names for installed MN's"
@@ -179,8 +179,12 @@ case $start in
 	echo "Starting $alias after repair"
 	systemctl start ${alias}.service
 	sleep 5
+	echo ""
+	echo "Please wait for a moment.. and use $alias masernode status to check if $alais is ready for POSE unban or still showing READY"
+	echo "If $alias showing POSE banned you will need to run the protx update command to unban"
+	echo "Below is an example of the protx update command to use in your main wallets debug console"
+	echo "protx update_service proTxHash ipAndPort operatorKey (operatorPayoutAddress feeSourceAddress)"
 	echo "Chain repair tool finished"
-	echo "Please wait for a moment.. and use $alias -getinfo to check block height agaist explorer"
 	exit
 	;;	
     6) echo "Starting Removal tool"
