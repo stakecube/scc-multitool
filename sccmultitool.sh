@@ -1,6 +1,6 @@
 #!/bin/bash
 #Coin info
-version="3.0"
+version="3.0.1"
 coinname=stakecubecoin
 coinnamed=sccd
 coinnamecli=scc-cli
@@ -180,49 +180,34 @@ case $start in
 	systemctl start ${alias}.service
 	sleep 5
 	echo ""
-	echo "Please wait for a moment.. and use $alias masernode status to check if $alais is ready for POSE unban or still showing READY"
+	echo "Please wait for a moment.. and use $alias masternode status to check if $alais is ready for POSE unban or still showing READY"
 	echo "If $alias showing POSE banned you will need to run the protx update command to unban"
 	echo "Below is an example of the protx update command to use in your main wallets debug console"
 	echo "protx update_service proTxHash ipAndPort operatorKey (operatorPayoutAddress feeSourceAddress)"
 	echo "Chain repair tool finished"
 	exit
 	;;	
-    6) echo "Starting Removal tool"
-    echo "Checking home directory for MN alias's"
-    ls /home
-    echo "Above are the alias names for installed MN's"
-    echo "please enter MN alias name"
-    read alias
-    echo "Stopping $alias"
-    systemctl stop $alias
-    echo "Pausing script to ensure $alias has stopped"
-    sleep 15
-	#ipv6check and remove
-	confip=$(sed -n '11p' /home/${alias}/.${coindir}/${coinname}.conf)
-	if [[ ${confip} = bind=[*** ]]
-	then
-		confip=$(echo $confip | sed "s/bind=//g")
-		confip=$(echo $confip | sed 's/\[//')
-		confip=$(echo $confip | sed 's/\]//')
-		echo "confip is $confip"
-		echo "removing $confip from 01-netcfg.yaml"
-		sed -i "/${confip}/d" /etc/netplan/01-netcfg.yaml
-		netplan apply
-	else
-		echo "$alias.conf file showing $confip"
-		echo "IPv6 not found skipping removal of IP from netplan"
-	fi
+	6) echo "Starting Removal tool"
+	echo "Checking home directory for MN alias's"
+	ls /home
+	echo "Above are the alias names for installed MN's"
+	echo "please enter MN alias name"
+	read alias
+	echo "Stopping $alias"
+	systemctl stop $alias
+	echo "Pausing script to ensure $alias has stopped"
+	sleep 15
 	systemctl disable $alias
 	rm /usr/local/bin/$alias
 	rm /etc/systemd/system/$alias.service
 	deluser $alias
-    rm -r /home/$alias
-    echo "$alias removed"
-    exit
-    ;;
-    7) echo "Starting $ticker MasterNode install"
-    ;;
-    8) echo "Starting stop/start tool..."
+	rm -r /home/$alias
+	echo "$alias removed"
+	exit
+	;;
+	7) echo "Starting $ticker MasterNode install"
+	;;
+	8) echo "Starting stop/start tool..."
 	echo "Please enter <stop> to stop all ${ticker} nodes"
 	echo "Please enter <start> to start all ${ticker} nodes"
 	echo "Please enter <restart> to restart all ${ticker} nodes"
@@ -278,7 +263,7 @@ then
 	echo " 2 $dipv6"
 	netconfcount=$(grep -c :0000:0000:0000: /etc/netplan/01-netcfg.yaml)
 	echo "$netconfcount"
-	cipv6=$(( $netconfcount+1 ))
+	cipv6=$(( $netconfcount+51 ))
 	ipv6="$(echo $dipv6 | sed "s/:0001/:$cipv6/g")"
 	echo "New IPv6 is $ipv6"
 	#Add IPv6 address to /etc/netplan/01-netcfg.yaml
