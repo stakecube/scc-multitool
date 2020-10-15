@@ -1,13 +1,13 @@
 #!/bin/bash
 #Coin info
-version="3.0.1"
+version="3.0.2"
 coinname=stakecubecoin
 coinnamed=sccd
 coinnamecli=scc-cli
 ticker=SCC
 coindir=scc
-binaries='https://github.com/stakecube/StakeCubeCoin/releases/download/v3.0.1/scc-3.0.1-linux-daemon.zip'
-snapshot='https://github.com/stakecube/StakeCubeCoin/releases/download/v3.0.1/bootstrap.zip'
+binaries='https://github.com/stakecube/StakeCubeCoin/releases/download/v3.0.2/bootstrap.zip'
+snapshot='https://github.com/stakecube/StakeCubeCoin/releases/download/v3.0.2/scc-3.0.2-linux-daemon.zip'
 port=40000
 rpcport=39999
 discord='https://discord.gg/xxjZzJE'
@@ -33,7 +33,7 @@ echo "1  - Newserver 2GB swap + IPv6 setup. REQUIRES RESTART"
 echo "2  - Newserver 8GB swap + IPv6 setup. REQUIRES RESTART"
 echo "3  - Enable IPv6"
 echo "4  - Wallet update (all ${ticker} nodes)"
-echo "5  - Chain/PoSe maintenance tool (single ${ticker} node"
+echo "5  - Chain/PoSe maintenance tool (single ${ticker} node)"
 echo "6  - Remove MasterNode"
 echo "7  - Masternode install"
 echo "8  - Masternode stop/start/restart (stop/start/restart all ${ticker} nodes)"
