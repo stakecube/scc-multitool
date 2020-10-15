@@ -150,7 +150,7 @@ case $start in
 	echo "Restarting $i.."
 	systemctl restart $i
 	echo "$i updated and restarted"
-	echo "Pausing to let $i settle"
+	echo "Pausing for 2 minutes to let $i settle"
 	sleep 120
 	else
 	echo "No $ticker MN's found to update"
@@ -223,7 +223,7 @@ case $start in
 			then
 				echo "${stopstart}ing $i.."
 				systemctl $stopstart $i
-				echo "Pausing to let $i settle"
+				echo "Pausing for 2 minutes to let $i settle"
 				sleep 120
 			else
 				echo "${ticker} node not found"
