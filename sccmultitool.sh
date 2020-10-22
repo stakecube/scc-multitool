@@ -65,7 +65,7 @@ case $start in
     #Install zip and unzip tools
     apt install zip unzip
     #Get check.sh
-    wget https://github.com/stakecube/SCC-multitool/blob/master/check.sh -O check.sh
+    wget https://raw.githubusercontent.com/stakecube/SCC-multitool/master/check.sh -O check.sh
     chmod +x check.sh
 	#Enable IPv6
 	sleep 2
@@ -103,7 +103,7 @@ case $start in
     #Install zip and unzip tools
     apt install zip unzip
     #Get check.sh
-    wget https://github.com/stakecube/SCC-multitool/blob/master/check.sh -O check.sh
+    wget https://raw.githubusercontent.com/stakecube/SCC-multitool/master/check.sh -O check.sh
     chmod +x check.sh
 	#Enable IPv6
 	sleep 2
