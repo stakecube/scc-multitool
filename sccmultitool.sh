@@ -73,6 +73,7 @@ case $start in
 	sysctl -q -p
 	echo 0 > /proc/sys/net/ipv6/conf/all/disable_ipv6
 	sed -i "s/#//" /etc/netplan/01-netcfg.yaml
+	sed -i '1{/^$/d}' /etc/netplan/01-netcfg.yaml
 	netplan generate
 	netplan apply
 	sleep 5
@@ -111,6 +112,7 @@ case $start in
 	sysctl -q -p
 	echo 0 > /proc/sys/net/ipv6/conf/all/disable_ipv6
 	sed -i "s/#//" /etc/netplan/01-netcfg.yaml
+	sed -i '1{/^$/d}' /etc/netplan/01-netcfg.yaml
 	netplan generate
 	netplan apply
 	sleep 5
@@ -126,6 +128,7 @@ case $start in
 	sysctl -q -p
 	echo 0 > /proc/sys/net/ipv6/conf/all/disable_ipv6
 	sed -i "s/#//" /etc/netplan/01-netcfg.yaml
+	sed -i '1{/^$/d}' /etc/netplan/01-netcfg.yaml
 	netplan generate
 	netplan apply
 	sleep 5
@@ -259,6 +262,7 @@ apt install curl
 if [[ $ipchoice == yes ]]
 then
 	#set default IPv6
+	sed -i '1{/^$/d}' /etc/netplan/01-netcfg.yaml
 	dipv6=$(sed -n '10p' /etc/netplan/01-netcfg.yaml)
 	echo " 2 $dipv6"
 	netconfcount=$(grep -c :0000:0000:0000: /etc/netplan/01-netcfg.yaml)
