@@ -183,7 +183,7 @@ case $start in
 	systemctl start ${alias}.service
 	sleep 5
 	echo ""
-	echo "Please wait for a moment.. and use $alias masternode status to check if $alais is ready for POSE unban or still showing READY"
+	echo "Please wait for a moment.. and use $alias masternode status to check if $alias is ready for POSE unban or still showing READY"
 	echo "If $alias showing POSE banned you will need to run the protx update command to unban"
 	echo "Below is an example of the protx update command to use in your main wallets debug console"
 	echo "protx update_service proTxHash ipAndPort operatorKey (operatorPayoutAddress feeSourceAddress)"
