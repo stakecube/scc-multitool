@@ -673,6 +673,10 @@ case $start in
 
 	14)	echo -e "Beginning Status Checks of Nodes"
 
+		updatechainfile=0
+		offlinerepairall=0
+		updateallnodes=0
+
 		for i in $(ls /home/); do
 
 			echo -e "${YELLOW}Checking for ${CYAN}$ticker ${YELLOW}MN's${NC}"
@@ -689,6 +693,56 @@ case $start in
 					if [ $mn_status_exitcode != 0 ]
 						then
 							echo -e "${RED}Something appears to be wrong with node ${CYAN}$i${NC}"
+							echo -e "${YELLOW}Entering Repair Mode${NC}"
+
+							if [[ $updatechainfile == 0 ]]
+								then
+									echo -e "${YELLOW}Do you wish to update the offline chain file first?"
+									echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+									read updatechainfile
+
+													if [[ $updatechainfile == "yes" ]]
+														then
+															echo -e "${CYAN}Downloading updated bootstrap for offline install/repair${NC}"
+															cd /root
+															wget -nv --show-progress ${snapshot} -O ${coinname}.zip
+															echo -e ""
+													fi
+											fi
+
+											if [[ $offlinerepairall == "no" ]] || [[ $offlinerepairall == 0 ]]
+												then
+													echo -e ""
+													echo -e "${YELLOW}Do you wish to use offline bootstrap for all repairs?"
+													echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+													read offlinerepairall
+											fi
+
+											if [[ $updateallnodes != "yes" ]]
+												then
+													echo -e "${YELLOW}Do you wish to chain repair this node?${NC}"
+													echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+													read repairnode
+													echo -e ""
+
+													if [[ $repairnode == "yes" ]]
+														then
+															echo -e "${YELLOW}Do you wish to repair all nodes?${NC}"
+															echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+															read updateallnodes
+															echo -e ""
+													fi
+											fi
+
+											if [[ $offlinerepairall == "yes" ]]
+												then
+													chain_repair $i "yes"
+												else
+													chain_repair $i "no"
+											fi
+
+							fi
+							
 						else
 
 #							echo -e "$mn_status"
@@ -820,6 +874,56 @@ case $start in
 							fi
 						else
 							echo -e "${RED}Something is wrong with ${CYAN}$i${NC}"
+							echo -e "${YELLOW}Entering Repair Mode${NC}"
+
+							if [[ $updatechainfile == 0 ]]
+								then
+									echo -e "${YELLOW}Do you wish to update the offline chain file first?"
+									echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+									read updatechainfile
+
+													if [[ $updatechainfile == "yes" ]]
+														then
+															echo -e "${CYAN}Downloading updated bootstrap for offline install/repair${NC}"
+															cd /root
+															wget -nv --show-progress ${snapshot} -O ${coinname}.zip
+															echo -e ""
+													fi
+											fi
+
+											if [[ $offlinerepairall == "no" ]] || [[ $offlinerepairall == 0 ]]
+												then
+													echo -e ""
+													echo -e "${YELLOW}Do you wish to use offline bootstrap for all repairs?"
+													echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+													read offlinerepairall
+											fi
+
+											if [[ $updateallnodes != "yes" ]]
+												then
+													echo -e "${YELLOW}Do you wish to chain repair this node?${NC}"
+													echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+													read repairnode
+													echo -e ""
+
+													if [[ $repairnode == "yes" ]]
+														then
+															echo -e "${YELLOW}Do you wish to repair all nodes?${NC}"
+															echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+															read updateallnodes
+															echo -e ""
+													fi
+											fi
+
+											if [[ $offlinerepairall == "yes" ]]
+												then
+													chain_repair $i "yes"
+												else
+													chain_repair $i "no"
+											fi
+
+
+
 					fi
 
 				else
