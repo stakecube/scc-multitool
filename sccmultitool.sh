@@ -890,11 +890,10 @@ case $start in
 									fi
 
 							fi
-					fi
 				else
 					echo -e "${RED}No $ticker MN's found to check${NC}"
 			fi
-
+		
 			echo -e ""
 
 		done
