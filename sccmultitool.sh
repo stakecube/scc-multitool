@@ -68,10 +68,11 @@ echo -e "8  - Masternode stop/start/restart (stop/start/restart all ${ticker} no
 echo -e "9  - Check health and repair (all ${ticker} nodes)- COMING SOON!"
 echo -e "10 - Download/Update StakeCubeCoin local bootstrap file"
 echo -e "11 - Setup 2GB swap space, if newserver setup was not previously run"
-echo -e "12 - Setup 8GB swap space, if newserver setup was not previously run"
+echo -e "12 - Setup X MB swap space, if newserver setup was not previously run"
 echo -e "13 - Check block count status against explorer"
 echo -e "14 - Check MN health status and optional repair (all ${ticker} nodes)"
 echo -e "15 - Check block count and optional chain repair (all ${ticker} nodes)"
+echo -e "16 - Check available disk space"
 echo -e ""
 echo -e "0  - Exit"
 echo -e "${NC}"
@@ -583,7 +584,7 @@ case $start in
 		echo -e "Please enter ${CYAN}<restart>${NC} to restart all ${ticker} nodes"
 		read stopstart
 		echo -e ""
-		
+
 		if [[ $stopstart == stop ]] || [[ $stopstart == start ]] || [[ $stopstart == restart ]]
 			then
 				echo -e "Starting ${CYAN}$stopstart${NC} tool"
@@ -624,13 +625,26 @@ case $start in
 
 	;;
 
-	11)	echo "Setting up 2GB test swap file"
+	11)	echo "Setting up 2GB swap file"
 		setup_swap "2048"
 		exit
 	;;
 
-	12)	echo "Setting up 8GB test swap file"
-		setup_swap "8192"
+	12)	echo "Setting up X MB swap file"
+
+		echo -e ""
+		echo -e "${YELLOW}Enter size of swap file to create in MB (2048 is 2GB, 8192 is 8GB)${NC}"
+		read swapsize
+
+		if [[ swapsize > 0 ]]
+			then
+				echo -e "${YELLOW}Creating swap file${NC}"
+				setup_swap "$swapsize"
+			else
+				echo -e ""
+				echo -e "${CYAN}Please enter a valid number${NC}"
+		fi
+
 		exit
 	;;
 
@@ -735,7 +749,7 @@ case $start in
 		offlinerepairall=0
 		updateallnodes=0
 		blockcompare=0
-		
+
 		for i in $(ls /home/); do
 
 			echo -e "${YELLOW}Checking for $ticker MN's${NC}"
@@ -757,7 +771,6 @@ case $start in
 							read blockcompare
 							echo -e ""
 					fi
-
 
 					if [[ $nodestatus == 0 ]]
 						then
@@ -838,7 +851,7 @@ case $start in
 									echo -e "${YELLOW}Do you wish to update the offline chain file first?"
 									echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 									read updatechainfile
-									
+
 									if [[ $updatechainfile == "yes" ]]
 										then
 											echo -e "${CYAN}Downloading updated bootstrap for offline install/repair${NC}"
@@ -893,7 +906,7 @@ case $start in
 				else
 					echo -e "${RED}No $ticker MN's found to check${NC}"
 			fi
-		
+
 			echo -e ""
 
 		done
@@ -901,6 +914,15 @@ case $start in
 		exit
 
 	;;
+
+		16) echo -e "${YELLOW}Available disk space is${CYAN}"
+
+			df / -h
+
+			echo -e "${NC}"
+			exit
+	;;
+
 
     esac
 
