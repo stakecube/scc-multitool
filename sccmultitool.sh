@@ -116,6 +116,8 @@ function chain_repair() {
 
 	echo -e ""
 	cd /home/$alias
+        find /home/$alias/.${coindir}/ -name ".lock" -delete
+        find /home/$alias/.${coindir}/ -name ".walletlock" -delete
 	find /home/$alias/.${coindir}/* ! -name "wallet.dat" ! -name "*.conf" -delete
 	echo -e "${YELLOW}Downloading/Copying and replacing chain files for ${MAGENTA}$alias${NC}"
 
