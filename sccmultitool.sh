@@ -702,9 +702,20 @@ case $start in
 					mn_status=$($i masternode status)
 					mn_status_exitcode=$?
 
-					if [ $mn_status_exitcode != 0 ]
+					if [[ $mn_status_exitcode != 0 ]]
 						then
 							echo -e "${RED}Something appears to be wrong with node ${CYAN}$i${NC}"
+							echo -e ""
+							echo -e "${YELLOW}Do you wish to initiate repair of this node${NC}"
+							echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+							read repairnode
+
+							if [[ $repairnode == yes ]]
+								then
+									chain_repair "$i"
+								else
+									echo -e "${RED}Not repairing node at this time${NC}"
+							fi 
 						else
 
 #							echo -e "$mn_status"
@@ -925,5 +936,6 @@ case $start in
 
 
     esac
+
 
 
