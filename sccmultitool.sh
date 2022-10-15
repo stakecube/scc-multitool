@@ -1,6 +1,6 @@
 #!/bin/bash
 #Coin info
-version="3.2.0"
+version="3.3.0"
 coinname=stakecubecoin
 coinnamed=sccd
 coinnamecli=scc-cli
