@@ -290,7 +290,7 @@ EOF
 	echo -e "" >> $alias.service
 	echo -e "Restart=always" >> $alias.service
 	echo -e "PrivateTmp=true" >> $alias.service
-	echo -e "TimeoutStopSec=60s" >> $alias.service
+	echo -e "TimeoutStopSec=3600s" >> $alias.service
 	echo -e "TimeoutStartSec=10s" >> $alias.service
 	echo -e "StartLimitInterval=120s" >> $alias.service
 	echo -e "StartLimitBurst=5" >> $alias.service
