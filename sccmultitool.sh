@@ -1,12 +1,12 @@
 #!/bin/bash
 #Coin info
-version="3.3.0"
+version="3.3.1"
 coinname=stakecubecoin
 coinnamed=sccd
 coinnamecli=scc-cli
 ticker=SCC
 coindir=scc
-binaries='https://github.com/stakecube/StakeCubeCoin/releases/download/v3.3.0/scc-3.3.0-x86_64-linux-gnu.zip'
+binaries='https://github.com/stakecube/StakeCubeCoin/releases/download/v3.3.1/scc-3.3.1-x86_64-linux-gnu.zip'
 snapshot='https://stakecubecoin.net/bootstrap.zip'
 port=40000
 rpcport=39999
@@ -38,13 +38,12 @@ readonly CYAN='\e[1;36m'
 readonly UNDERLINE='\e[1;4m'
 readonly NC='\e[0m'
 
-
 clear
 
 cat << "EOF" 
-   _____ _        _         _____      _          
-  / ____| |      | |       / ____|    | |         
- | (___ | |_ __ _| | _____| |    _   _| |__   ___ 
+   _____ _        _         _____      _
+  / ____| |      | |       / ____|    | |
+ | (___ | |_ __ _| | _____| |    _   _| |__   ___
   \___ \| __/ _` | |/ / _ \ |   | | | | '_ \ / _ \
   ____) | || (_| |   <  __/ |___| |_| | |_) |  __/
  |_____/ \__\__,_|_|\_\___|\_____\__,_|_.__/ \___|
@@ -65,20 +64,29 @@ echo -e "5  - Chain/PoSe maintenance tool (single ${ticker} node)"
 echo -e "6  - Remove MasterNode"
 echo -e "7  - Masternode install"
 echo -e "8  - Masternode stop/start/restart (stop/start/restart all ${ticker} nodes)"
-echo -e "9  - Check health and repair (all ${ticker} nodes)- COMING SOON!"
+echo -e "9  - Full chain repair by not using bootstrap"
 echo -e "10 - Download/Update StakeCubeCoin local bootstrap file"
-echo -e "11 - Setup 2GB swap space, if newserver setup was not previously run"
-echo -e "12 - Setup X MB swap space, if newserver setup was not previously run"
+echo -e "11 - Not used"
+echo -e "12 - Setup/Resize/Delete swap space with X MB swap space"
 echo -e "13 - Check block count status against explorer"
 echo -e "14 - Check MN health status and optional repair (all ${ticker} nodes)"
 echo -e "15 - Check block count and optional chain repair (all ${ticker} nodes)"
-echo -e "16 - Check available disk space"
+echo -e "16 - Check status of disk space and memory usage"
 echo -e ""
 echo -e "0  - Exit"
 echo -e "${NC}"
 read -p "> " start
 echo -e ""
 
+
+function is_number() {
+
+# Author: neo3587
+# Source: https://github.com/neo3587/dupmn
+
+		# <$1 = number>
+        [[ "$1" =~ ^[0-9]+$ ]] && echo "1"
+}
 
 function chain_repair() {
 
@@ -97,7 +105,7 @@ function chain_repair() {
 			read alias
 		else
 			alias=$1
-	fi	
+	fi
 
 	echo -e ""
 	echo -e "Stopping ${MAGENTA}$alias${NC}"
@@ -126,7 +134,7 @@ function chain_repair() {
 		then
 			sccfile=~/${coinname}.zip
 			if test -e "$sccfile"
-				then 
+				then
 					#rsync -adm --info=progress2 /root/${coinname}.zip /home/$alias
 					unzip ~/${coinname}.zip
 					echo -e "${YELLOW}$coinname local bootstrap directory updated${NC}"
@@ -139,7 +147,7 @@ function chain_repair() {
 					echo -e "${YELLOW}$coinname chain directory updated${NC}"
 					echo -e "${YELLOW}Removing downloaded temp file${NC}"
 					rm /home/${alias}/${coinname}.zip
-			fi	
+			fi
 		else
 			wget -nv --show-progress ${snapshot} -O ${coinname}.zip
 			unzip ${coinname}.zip
@@ -187,7 +195,6 @@ function install_mn() {
 	echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 	read ipchoice
 
-	
 	#script dependency
 	echo -e "Checking/installing dependency for auto IP setup"
 
@@ -220,16 +227,16 @@ function install_mn() {
 	echo -e "${YELLOW}Use offline bootstrap?${NC}"
 	echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 	read bootstrapchoice
-	
+
 	echo -e ""
 	ufw allow ssh
-	
+
 	echo -e "${CYAN}Making sure your VPS is up to date before continuing install${NC}"
 	apt update -y
 
 	#setup user
 	echo -e ""
-	echo -e "${YELLOW}Setting up user ${RED}$alias${NC}"
+	echo -e "${YELLOW}Setting up user ${CYAN}$alias${NC}"
 
 adduser "$alias" <<EOF
 echo ${pass}
@@ -244,9 +251,9 @@ echo ${pass}
 EOF
 
 	echo -e ""
-	echo -e "${CYAN}User ${RED}$alias${CYAN} setup${NC}"
+	echo -e "${CYAN}User ${CYAN}$alias${CYAN} setup${NC}"
 	echo -e ""
-	
+
 	#Node binaries check and install if needed
 	cd /usr/local/bin
 	binfile=/usr/local/bin/${coinnamecli}
@@ -257,7 +264,7 @@ EOF
 		else
 			echo -e "${YELLOW}Installing node binaries for ${MAGENTA}$alias{$NC}"
 			cd /usr/local/bin
-			wget ${binaries} -O ${coinname}.zip
+			wget -nv --show-progress ${binaries} -O ${coinname}.zip
 			unzip ${coinname}.zip
 			chmod +x ${coinnamecli} ${coinnamed}
 			rm ${coinname}.zip
@@ -311,7 +318,7 @@ EOF
 		then
 			sccfile=~/${coinname}.zip
 			if test -e "$sccfile"
-				then 
+				then
 					#rsync -adm --info=progress2 /root/${coinname}.zip /home/$alias
 					unzip ~/${coinname}.zip
 					echo -e "${YELLOW}$coinname local bootstrap directory updated${NC}"
@@ -324,7 +331,7 @@ EOF
 					echo -e "${YELLOW}$coinname chain directory updated${NC}"
 					echo -e "${YELLOW}Removing downloaded temp file${NC}"
 					rm /home/${alias}/${coinname}.zip
-			fi	
+			fi
 		else
 			wget -nv --show-progress ${snapshot} -O ${coinname}.zip
 			unzip ${coinname}.zip
@@ -332,7 +339,7 @@ EOF
 			echo -e "${YELLOW}Removing downloaded temp file${NC}"
 			rm /home/${alias}/${coinname}.zip
 	fi
-	
+
 	#make conf file
 	echo -e ""
 	echo -e "${YELLOW}Creating $coinname conf file${NC}"
@@ -377,7 +384,8 @@ EOF
 	echo -e ""
 	echo -e "${YELLOW}Please wait a moment and then read the following information${NC}"
 	sleep 15
-	echo -e "${CYAN}$ticker MN setup completed${NC}"
+	echo -e ""
+	echo -e "${CYAN}$ticker${YELLOW} MN setup completed${NC}"
 	echo -e ""
 
 	#Closeing/finish text
@@ -391,10 +399,13 @@ EOF
 	echo -e "alias password = $pass"
 	echo -e ""
 	echo -e "${YELLOW}Please note that if you are installing multiple MNs you will need to setup swap space${NC}"
-	echo -e "${YELLOW}Wait for sync and then use $alias -getinfo or $alias masternode status to check node${NC}"
+	echo -e "${YELLOW}Please wait for sync and then use ${CYAN}$alias -getinfo${NC} or ${CYAN}$alias masternode status ${YELLOW}to check on the node${NC}"
+	echo -e ""
 	echo -e ""
 	echo -e "For more information or support please visit the ${CYAN}$ticker${NC} Discord server"
-	echo -e "$discord"
+	echo -e "Support is provided via email: ${MAGENTA}${UNDERLINE}support@stakecube.zohodesk.com${NC}"
+	echo -e ""
+	echo -e "${CYAN}$discord${NC}"
 	echo -e ""
 
 }
@@ -415,24 +426,56 @@ function ipv6_setup() {
 
 }
 
-
 function setup_swap() {
 
-    cd /root
-    #Create swap file
-    dd if=/dev/zero of=/var/swapfile bs=1024 bs=1M count=$1 status=progress
-    mkswap /var/swapfile
-    swapon /var/swapfile
-    chmod 0600 /var/swapfile
-    chown root:root /var/swapfile
-    echo -e "/var/swapfile none swap sw 0 0" >> /etc/fstab
+# Author: neo3587
+# Source: https://github.com/neo3587/dupmn
+# Adapted for use by Lifenaked(grigzy28)
 
+        # <$1 = size_in_mbytes>
+
+        echo -e ""
+
+		if [[ ! $(is_number $1) ]]; then
+                echo -e "${YELLOW}<size_in_mbytes>${NC} must be a number"
+                return
+        fi
+
+        local avail_mb=$(df / --output=avail -m | grep [0-9])
+        local total_mb=$(df / --output=size -m | grep [0-9])
+
+        if [[ $1 -ge $avail_mb ]]; then
+                echo -e "There's only $avail_mb MB available in the hard disk"
+                return
+        fi
+
+        [[ -f /var/swapfile ]] && swapoff /var/swapfile &> /dev/null
+
+        if [[ $1 -eq 0 ]]; then
+                rm -rf /var/swapfile
+                sed -i "/\/var\/swapfile/d" /etc/fstab
+                echo -e "Swapfile deleted"
+        else
+                echo -e "Generating swapfile, this may take some time depending on the size..."
+                echo -e "$(($1 * 1024 * 1024)) bytes swapfile"
+                dd if=/dev/zero of=/var/swapfile bs=1024 bs=1M count=$1 status=progress
+                chmod 600 /var/swapfile &> /dev/null
+                mkswap /var/swapfile &> /dev/null
+                swapon /var/swapfile &> /dev/null
+                /var/swapfile swap swap defaults 0 0 &> /dev/null
+                [[ ! $(cat /etc/fstab | grep "/var/swapfile") ]] && echo "/var/swapfile none swap 0 0" >> /etc/fstab
+                echo -e ""
+				echo -e "${YELLOW}Swapfile new size = ${GREEN}$1 MB${NC}"
+        fi
+
+        echo -e "Use ${YELLOW}swapon -s${NC} to see the changes of your swapfile and ${YELLOW}free -m${NC} to see the total available memory"
 }
+
 
 
 case $start in
 #Tools
-    
+
 	0)	echo -e "Stopping and exiting script..."
 		exit
     ;;
@@ -505,7 +548,7 @@ case $start in
 		echo -e ""
 		cd /usr/local/bin
 		rm $coinnamecli $coinnamed
-		wget ${binaries} -O ${coinname}.zip
+		wget -nv --show-progress ${binaries} -O ${coinname}.zip
 		unzip -o ${coinname}.zip
 		chmod +x ${coinnamecli} ${coinnamed}
 		rm ${coinname}.zip
@@ -546,11 +589,11 @@ case $start in
 
 	6)	echo -e "${YELLOW}Starting Removal tool${NC}"
 		echo -e ""
-		echo -e "Checking home directory for MN alias's"
+		echo -e "${YELLOW}Checking home directory for MN alias's${NC}"
 		ls /home
 		echo -e ""
 		echo -e "${YELLOW}Above are the alias names for installed MN's${NC}"
-		echo -e "${CYAN}Please enter MN alias name{NC}"
+		echo -e "${CYAN}Please enter MN alias name${NC}"
 		echo -e ""
 		read alias
 		echo -e ""
@@ -571,24 +614,24 @@ case $start in
 	;;
 
 	7)	echo -e "${YELLOW}Starting $ticker MasterNode install${NC}"
-		
+
 		install_mn
-		
+
 		exit
 
 	;;
 
 	8)	echo -e "Starting stop/start tool..."
-		echo -e "Please enter ${CYAN}<stop>${NC} to stop all ${ticker} nodes"
-		echo -e "Please enter ${CYAN}<start>${NC} to start all ${ticker} nodes"
-		echo -e "Please enter ${CYAN}<restart>${NC} to restart all ${ticker} nodes"
+		echo -e "Please enter ${CYAN}stop${NC} to stop all ${ticker} nodes"
+		echo -e "Please enter ${CYAN}start${NC} to start all ${ticker} nodes"
+		echo -e "Please enter ${CYAN}restart${NC} to restart all ${ticker} nodes"
 		read stopstart
 		echo -e ""
 
 		if [[ $stopstart == stop ]] || [[ $stopstart == start ]] || [[ $stopstart == restart ]]
 			then
 				echo -e "Starting ${CYAN}$stopstart${NC} tool"
-				
+
 				for i in $(ls /home/)
 					do
 						echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} MN's"
@@ -597,9 +640,16 @@ case $start in
 							then
 								echo -e "${MAGENTA}${stopstart}ing ${CYAN}$i${MAGENTA}..${NC}"
 								systemctl $stopstart $i
-								echo -e "Pausing for 2 minutes to let ${CYAN}$i${NC} settle"
-								sleep 120
-								echo -e ""
+								if [[ $stopstart == "stop" ]]
+									then
+										echo -e "${YELLOW}Pausing for 10 seconds${NC}"
+										sleep 10
+										echo -e ""
+									else
+										echo -e "Pausing for 2 minutes to let ${CYAN}$i${NC} settle"
+										sleep 120
+										echo -e ""
+								fi
 							else
 								echo -e "${CYAN}${ticker}${NC} node not found"
 						fi
@@ -612,8 +662,36 @@ case $start in
 
 	;;
 
-	9)	echo -e "Starting health check and repair tool"
-		echo -e "Tool coming soon! Now closing.."
+	9)	echo -e "${YELLOW}Starting full chain download repair tool${NC}"
+		echo -e ""
+		echo -e "${YELLOW}Checking home directory for masternode alias's${NC}"
+		echo -e ""
+		ls /home
+		echo -e ""
+		echo -e "${YELLOW}Above are the alias names for the installed masternodes${NC}"
+		echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
+		echo -e ""
+		read alias
+		echo -e ""
+
+		echo -e "${YELLOW}Stopping node ${CYAN}$alias${NC}"
+
+		systemctl stop $alias.service
+
+		echo -e ""
+		echo -e "${YELLOW}Pausing for 30 seconds${NC}"
+
+		sleep 30
+
+		cd /home/$alias
+		find /home/$alias/.${coindir}/ -name ".lock" -delete
+		find /home/$alias/.${coindir}/ -name ".walletlock" -delete
+		find /home/$alias/.${coindir}/* ! -name "wallet.dat" ! -name "*.conf" -delete
+
+		echo -e "${RED}Chain files are deleted, restarting node ${CYAN}$alias${NC}"
+
+		systemctl start $alias.service
+
 		exit
 
 	;;
@@ -625,28 +703,63 @@ case $start in
 
 	;;
 
-	11)	echo "Setting up 2GB swap file"
-		setup_swap "2048"
-		exit
+	11)	exit
+
 	;;
 
-	12)	echo "Setting up X MB swap file"
+#	echo "Setting up X MB swap file"
+#
+#		echo -e ""
+#		echo -e "${YELLOW}Enter size of swap file to create in MB (2048 is 2GB, 8192 is 8GB)${NC}"
+#		read swapsize
+#
+#		if [[ swapsize > 0 ]]
+#			then
+#				echo -e "${YELLOW}Creating swap file${NC}"
+#				setup_swap "$swapsize"
+#			else
+#				echo -e ""
+#				echo -e "${RED}Please enter a valid number${NC}"
+#		fi
+#
+#		exit
+#	;;
 
+	12)	echo -e "${YELLOW}Resizing Swap space to X MB swap size${NC}"
 		echo -e ""
-		echo -e "${YELLOW}Enter size of swap file to create in MB (2048 is 2GB, 8192 is 8GB)${NC}"
+		echo -e "${MAGENTA}Make sure all nodes are stopped first${NC}"
+		echo -e "${MAGENTA}If not, please press control-c to cancel${NC}"
+		echo -e ""
+		echo -e "${YELLOW}Enter size of swap file to create in MB (2048 is 2GB, 8192 (8GB), 16384 (16GB), 32768 (32GB), 65536 (64GB))${NC}"
+		echo -e "${YELLOW}Enter 0 to delete swapfile${NC}"
 		read swapsize
 
-		if [[ swapsize > 0 ]]
-			then
-				echo -e "${YELLOW}Creating swap file${NC}"
-				setup_swap "$swapsize"
-			else
-				echo -e ""
-				echo -e "${CYAN}Please enter a valid number${NC}"
-		fi
+		setup_swap "$swapsize"
+		
+#		if [[ swapsize > 0 ]]
+#			then
+#				echo -e ""
+#				echo -e "${MAGENTA}Resizing swap space${NC}"
+#				echo -e "${CYAN}Stopping existing swap space, this may take a minute or two${NC}"
+#				swapoff /var/swapfile
+#				swapstatus=$?
+#
+#				if [[ $swapstatus == 0 ]]
+#					then
+#						echo -e "${YELLOW}Creating swap file${NC}"
+#						setup_swap "$swapsize" "resize"
+#					else
+#						echo -e "${RED}Error occurred,${YELLOW} please ask for assistance with support or in Masternode channel on SCP Discord${NC}"
+#				fi
+#			else
+#				echo -e ""
+#				echo -e "${RED}Please enter a valid number${NC}"
+#		fi
 
 		exit
 	;;
+
+
 
 	13)	echo -e "Beginning Explorer comparison tool"
 
@@ -724,7 +837,7 @@ case $start in
 							grep -e 'state' <<< $mn_status
 							grep -e 'status' <<< $mn_status
 							grep -e 'POSE' <<< $mn_status > /dev/null
-#							grep -e 'ERROR' <<< $mn_status > /dev/null
+							grep -e 'ERROR' <<< $mn_status > /dev/null
 							mn_status_exitcode=$?
 
 							if [ $mn_status_exitcode -eq 0 ]
@@ -931,11 +1044,16 @@ case $start in
 			df / -h
 
 			echo -e "${NC}"
+
+			echo -e "${YELLOW}Available memory (ram and swap) is${CYAN}"
+
+			free -m -h
+
+			echo -e "${NC}"
+
 			exit
 	;;
 
 
     esac
-
-
 
