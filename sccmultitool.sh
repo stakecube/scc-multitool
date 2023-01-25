@@ -227,13 +227,11 @@ function install_mn() {
 			fi
 
 			sed -i '1{/^$/d}' $netcfg
-			linenumber1=$((grep -n ":0000" $netcfg) | cut -d\: -f1 | tail -1)
-#			linenumber2=$(cut -d: -f $linenumber1)
+			netconfcount=$(grep -c :0000:0000 $netcfg)
+			linenumber1=$((grep -n ":0000" $netcfg) | cut -d\: -f1 | head -n 1"
 			echo -e "$linenumber1"
-			echo -e "$linenumber2"
 			dipv6=$(sed -n "$linenumber1"p $netcfg)
 			echo -e " 2 $dipv6"
-			netconfcount=$(grep -c :0000:0000: $netcfg)
 			echo -e "$netconfcount"
 			cipv6=$(( $netconfcount+51 ))
 			echo -e "$cipv6"
