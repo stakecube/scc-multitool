@@ -56,9 +56,9 @@ echo -e "${UNDERLINE}${CYAN}Welcome to the StakeCube Multitools ${version}${NC}"
 #echo -e '\e[4mWelcome to the StakeCube Multitools '${version}' \e[24m'
 
 echo -e "${YELLOW}Please enter a number from the list and press [ENTER] to start tool"
-echo -e "1  - Newserver 2GB swap + IPv6 setup. REQUIRES RESTART"
-echo -e "2  - Newserver 8GB swap + IPv6 setup. REQUIRES RESTART"
-echo -e "3  - Enable IPv6"
+echo -e "1  - Newserver 2GB swap + IPv6 setup. REQUIRES RESTART ${MAGENTA}Contabo VPS${NC}"
+echo -e "2  - Newserver 8GB swap + IPv6 setup. REQUIRES RESTART ${MAGENTA}Contabo VPS${NC}"
+echo -e "3  - Enable IPv6 ${MAGENTA}Contabo VPS${NC}"
 echo -e "4  - Wallet update (all ${ticker} nodes)"
 echo -e "5  - Chain/PoSe maintenance tool (single ${ticker} node)"
 echo -e "6  - Remove MasterNode"
@@ -201,17 +201,49 @@ function install_mn() {
 	if [[ $ipchoice == yes ]]
 		then
 			#set default IPv6
-			sed -i '1{/^$/d}' /etc/netplan/01-netcfg.yaml
-			dipv6=$(sed -n '10p' /etc/netplan/01-netcfg.yaml)
+			netdone=0
+			netcfg=/etc/netplan/01-netcfg.yaml
+
+			if [[ -e $netcfg && $netdone == 0 ]] 
+				then
+					netdone=1
+				else
+					netcfg=/etc/netplan/00-installer-config.yaml
+					netdone=0
+			fi
+
+			if [[ -e $netcfg && $netdone == 0 ]] 
+				then
+					netcfg=/etc/netplan/00-installer-config.yaml
+					netdone=1
+				else
+					netdone=0
+			fi
+
+			if [[ $netdone == 0 ]]
+				then
+					echo -e "${MAGENTA}Error - network config file not found (01-netcfg.yaml or 00-installer-config.yaml)${NC}"
+					exit
+			fi
+
+			sed -i '1{/^$/d}' $netcfg
+			linenumber1=$((grep -n ":0000" $netcfg) | cut -d\: -f1)
+#			linenumber2=$(cut -d: -f $linenumber1)
+			echo -e "$linenumber1"
+			echo -e "$linenumber2"
+			dipv6=$(sed -n "$linenumber1"p $netcfg)
 			echo -e " 2 $dipv6"
-			netconfcount=$(grep -c :0000:0000:0000: /etc/netplan/01-netcfg.yaml)
+			netconfcount=$(grep -c :0000:0000: $netcfg)
 			echo -e "$netconfcount"
 			cipv6=$(( $netconfcount+51 ))
+			echo -e "$cipv6"
 			ipv6="$(echo $dipv6 | sed "s/:0001/:$cipv6/g")"
 			echo -e "New IPv6 is $ipv6"
-			#Add IPv6 address to /etc/netplan/01-netcfg.yaml
-			sed -i "/gateway6/i \ \ \ \ \ \ \ \ ${ipv6}" /etc/netplan/01-netcfg.yaml
+
+			#Add IPv6 address to netcfg file
+			sed -i "/gateway6/i \ \ \ \ \ \ \ \ ${ipv6}" $netcfg
 			netplan apply
+
 			#tidy IP input for conf
 			ipv6conf="$(echo $ipv6 | sed 's/.\{3\}$//')"
 			ipv6conf="$(echo $ipv6conf | sed "s/- //g")"
@@ -735,7 +767,7 @@ case $start in
 		read swapsize
 
 		setup_swap "$swapsize"
-		
+
 #		if [[ swapsize > 0 ]]
 #			then
 #				echo -e ""
