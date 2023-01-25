@@ -227,7 +227,7 @@ function install_mn() {
 			fi
 
 			sed -i '1{/^$/d}' $netcfg
-			linenumber1=$((grep -n ":0000" $netcfg) | cut -d\: -f1)
+			linenumber1=$((grep -n ":0000" $netcfg) | cut -d\: -f1 | tail -1)
 #			linenumber2=$(cut -d: -f $linenumber1)
 			echo -e "$linenumber1"
 			echo -e "$linenumber2"
