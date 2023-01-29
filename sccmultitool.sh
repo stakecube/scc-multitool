@@ -88,6 +88,12 @@ function is_number() {
         [[ "$1" =~ ^[0-9]+$ ]] && echo "1"
 }
 
+function pad () {
+
+	[ "$#" -gt 1 ] && [ -n "$2" ] && printf "%$2.${2#-}s" "$1";
+
+}
+
 function chain_repair() {
 
 	bootstrapchoice=$2
@@ -204,7 +210,7 @@ function install_mn() {
 			netdone=0
 			netcfg=/etc/netplan/01-netcfg.yaml
 
-			if [[ -e $netcfg && $netdone == 0 ]] 
+			if [[ -f $netcfg ]] && [[ $netdone != 1 ]] 
 				then
 					netdone=1
 				else
@@ -212,7 +218,10 @@ function install_mn() {
 					netdone=0
 			fi
 
-			if [[ -e $netcfg && $netdone == 0 ]] 
+#echo -e "$netdone"
+#echo -e "$netcfg"
+
+			if [[ -f $netcfg ]] && [[ $netdone != 1 ]] 
 				then
 					netcfg=/etc/netplan/00-installer-config.yaml
 					netdone=1
@@ -220,26 +229,51 @@ function install_mn() {
 					netdone=0
 			fi
 
-			if [[ $netdone == 0 ]]
+#echo -e "$netdone"
+#echo -e "$netcfg"
+
+			if [[ $netdone != 0 ]]
 				then
 					echo -e "${MAGENTA}Error - network config file not found (01-netcfg.yaml or 00-installer-config.yaml)${NC}"
 					exit
 			fi
 
-			sed -i '1{/^$/d}' $netcfg
-			netconfcount=$(grep -c :0000:0000 $netcfg)
-			linenumber1=$((grep -n ":0000" $netcfg) | cut -d\: -f1 | head -n 1"
-			echo -e "$linenumber1"
-			dipv6=$(sed -n "$linenumber1"p $netcfg)
-			echo -e " 2 $dipv6"
-			echo -e "$netconfcount"
-			cipv6=$(( $netconfcount+51 ))
-			echo -e "$cipv6"
-			ipv6="$(echo $dipv6 | sed "s/:0001/:$cipv6/g")"
-			echo -e "New IPv6 is $ipv6"
+            sed -i '1{/^$/d}' $netcfg
+            netconfcount=$(grep -c :0000:0000 $netcfg)
+            linenumber1=$((grep -n ":0000:0000" $netcfg) | cut -d\: -f1 | head -n 1)
+            linenumber2=$(( $linenumber1+$netconfcount ))
+            echo -e "$linenumber1"
+            echo -e "$linenumber2"
+            dipv6=$(sed -n "$linenumber1"p $netcfg)
+            spaces=$(echo -e "$dipv6" | tr -cd ' \t' | wc -c)
+            spaces=$(( $spaces-2 ))
+            echo -e " 2 $dipv6"
+            echo -e " 3 $spaces"
+            echo -e "$netconfcount"
+            cipv6=$(( $netconfcount+51 ))
+            echo -e "$cipv6"
+            ipv6="$(echo $dipv6 | sed "s/:0001/:$cipv6/g")"
+            echo -e "New IPv6 is $ipv6"
+            test="$(echo -e "$(pad " " $spaces) ${ipv6}")"
+            echo -e "$test"
+            sed -i "${linenumber2}i\\${test}" $netcfg
 
-			#Add IPv6 address to netcfg file
-			sed -i "/gateway6/i \ \ \ \ \ \ \ \ ${ipv6}" $netcfg
+
+#			sed -i '1{/^$/d}' $netcfg
+#			netconfcount=$(grep -c :0000:0000 $netcfg)
+#			linenumber1=$((grep -n ":0000:0000" $netcfg) | cut -d\: -f1 | head -n 1)
+#			echo -e "$linenumber1"
+#			dipv6=$(sed -n "$linenumber1"p $netcfg)
+#			echo -e " 2 $dipv6"
+#			echo -e "$netconfcount"
+#			cipv6=$(( $netconfcount+51 ))
+#			echo -e "$cipv6"
+#			ipv6="$(echo $dipv6 | sed "s/:0001/:$cipv6/g")"
+#			echo -e "New IPv6 is $ipv6"
+
+#			#Add IPv6 address to netcfg file
+#			sed -i "/gateway6/i \ \ \ \ \ \ \ \ ${ipv6}" $netcfg
+
 			netplan apply
 
 			#tidy IP input for conf
