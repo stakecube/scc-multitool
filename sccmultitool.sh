@@ -187,12 +187,15 @@ function install_mn() {
 	echo -e "${YELLOW}Above are the alias names for the installed masternodes${NC}"
 	echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
 	echo -e "${YELLOW}To use other tools you must include ${CYAN}$ticker${YELLOW} in alias${NC}"
+	echo -e "${YELLOW}Example: ${CYAN}sccmn001${NC}"
 	read alias
 	echo -e ""
 	echo -e "${YELLOW}${UNDERLINE}Enter BLS secret key${NC}"
 	read key
 	echo -e ""
 	echo -e "${YELLOW}${UNDERLINE}Please enter a unique RPC port number. Default is ${CYAN}$rpcport${NC}"
+	echo -e "${YELLOW}Examples: for ${CYAN}sccmn001 ${YELLOW}use ${CYAN}40010 ${YELLOW}and so on${NC}"
+	echo -e "${YELLOW}So it's 4(node number)0 (40010 for sccmn001)${NC}"
 	read rpcport
 
 	#IPv4/v6 choice and setup
