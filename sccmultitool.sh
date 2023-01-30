@@ -58,7 +58,7 @@ echo -e "${UNDERLINE}${CYAN}Welcome to the StakeCube Multitools ${version}${NC}"
 echo -e "${YELLOW}Please enter a number from the list and press [ENTER] to start tool"
 echo -e "${YELLOW}1  - Newserver 2GB swap + IPv6 setup. REQUIRES RESTART ${MAGENTA}Contabo VPS${NC}"
 echo -e "${YELLOW}2  - Newserver 8GB swap + IPv6 setup. REQUIRES RESTART ${MAGENTA}Contabo VPS${NC}"
-echo -e "${YELLOW}3  - Enable IPv6 ${MAGENTA}Contabo VPS${NC}"
+echo -e "${YELLOW}3  - Enable IPv6${MAGENTA}Contabo VPS${NC}"
 echo -e "${YELLOW}4  - Wallet update (all ${ticker} nodes)"
 echo -e "${YELLOW}5  - Chain/PoSe maintenance tool (single ${ticker} node)"
 echo -e "${YELLOW}6  - Remove MasterNode"
@@ -210,29 +210,35 @@ function install_mn() {
 			netdone=0
 			netcfg=/etc/netplan/01-netcfg.yaml
 
-			if [[ -f $netcfg ]] && [[ $netdone != 1 ]] 
+			if [[ $netdone == 0 ]] 
 				then
-					netdone=1
-				else
-					netcfg=/etc/netplan/00-installer-config.yaml
-					netdone=0
+					if [[ -f $netcfg ]] 
+						then
+							netdone=1
+						else
+							netcfg=/etc/netplan/00-installer-config.yaml
+							netdone=0
+					fi
 			fi
 
-#echo -e "$netdone"
-#echo -e "$netcfg"
+echo -e "$netdone"
+echo -e "$netcfg"
 
-			if [[ -f $netcfg ]] && [[ $netdone != 1 ]] 
+			if [[ $netdone == 0 ]] 
 				then
-					netcfg=/etc/netplan/00-installer-config.yaml
-					netdone=1
-				else
-					netdone=0
+					if [[ -f $netcfg ]]
+						then
+							netcfg=/etc/netplan/00-installer-config.yaml
+							netdone=1
+						else
+							netdone=0
+					fi
 			fi
 
-#echo -e "$netdone"
-#echo -e "$netcfg"
+echo -e "$netdone"
+echo -e "$netcfg"
 
-			if [[ $netdone != 0 ]]
+			if [[ $netdone == 0 ]]
 				then
 					echo -e "${MAGENTA}Error - network config file not found (01-netcfg.yaml or 00-installer-config.yaml)${NC}"
 					exit
@@ -361,8 +367,8 @@ EOF
 	echo -e "" >> $alias.service
 	echo -e "Restart=always" >> $alias.service
 	echo -e "PrivateTmp=true" >> $alias.service
-	echo -e "TimeoutStopSec=3600s" >> $alias.service
-	echo -e "TimeoutStartSec=10s" >> $alias.service
+	echo -e "TimeoutStopSec=6000s" >> $alias.service
+	echo -e "TimeoutStartSec=30s" >> $alias.service
 	echo -e "StartLimitInterval=120s" >> $alias.service
 	echo -e "StartLimitBurst=5" >> $alias.service
 	echo -e "" >> $alias.service
@@ -443,8 +449,12 @@ EOF
 	chown -R $alias $alias
 	ufw allow $port/tcp comment "$alias port"
 	ufw allow $rpcport/tcp comment "$alias RPC port"
-	systemctl start $alias
 	echo -e "${YELLOW}Permissions and firewall rules set${NC}"
+	echo -e ""
+	echo -e "${YELLOW}Starting Node${NC}"
+	
+	systemctl start $alias
+
 	echo -e ""
 	echo -e "${YELLOW}Please wait a moment and then read the following information${NC}"
 	sleep 15
@@ -481,9 +491,63 @@ function ipv6_setup() {
 	sleep 2
 	sed -i "/net.ipv6.conf.all.disable_ipv6.*/d" /etc/sysctl.conf
 	sysctl -q -p
+	
+	netcfg=/etc/netplan/50-cloud-init.yaml
+	netcfg2=/etc/netplan/01-netcfg.yaml
+	cloudinit=/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+		
+	if [[ -f $netcfg ]]
+		then
+			mv $netcfg $netcfg2
+			
+			if [[ -f $cloudinit ]]
+				then
+					netdone=0
+				else
+					echo "network: {config: disabled}" >> $cloudinit
+			fi
+	fi
+	
+	netdone=0
+	netcfg=/etc/netplan/01-netcfg.yaml
+
+	if [[ $netdone == 0 ]] 
+		then
+			if [[ -f $netcfg ]] 
+				then
+					netdone=1
+				else
+					netcfg=/etc/netplan/00-installer-config.yaml
+					netdone=0
+			fi
+	fi
+
+echo -e "$netdone"
+echo -e "$netcfg"
+
+	if [[ $netdone == 0 ]] 
+		then
+			if [[ -f $netcfg ]]
+				then
+					netcfg=/etc/netplan/00-installer-config.yaml
+					netdone=1
+				else
+					netdone=0
+			fi
+	fi
+
+echo -e "$netdone"
+echo -e "$netcfg"
+
+	if [[ $netdone == 0 ]]
+		then
+			echo -e "${MAGENTA}Error - network config file not found (01-netcfg.yaml or 00-installer-config.yaml)${NC}"
+			exit
+	fi
+	
 	echo 0 > /proc/sys/net/ipv6/conf/all/disable_ipv6
-	sed -i "s/#//" /etc/netplan/01-netcfg.yaml
-	sed -i '1{/^$/d}' /etc/netplan/01-netcfg.yaml
+	sed -i "s/#//" $netcfg
+	sed -i '1{/^$/d}' $netcfg
 	netplan generate
 	netplan apply
 	sleep 5
