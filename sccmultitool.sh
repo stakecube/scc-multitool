@@ -492,19 +492,32 @@ function ipv6_setup() {
 	sed -i "/net.ipv6.conf.all.disable_ipv6.*/d" /etc/sysctl.conf
 	sysctl -q -p
 	
+	filefixed=0
 	netcfg=/etc/netplan/50-cloud-init.yaml
 	netcfg2=/etc/netplan/01-netcfg.yaml
 	cloudinit=/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
 		
 	if [[ -f $netcfg ]]
 		then
-			mv $netcfg $netcfg2
+			echo -e "${CYAN}Determined Auto Configuration in place.${NC}"
+			echo -e "${CYAN}Do you wish to disable auto and setup static network configuration?${NC}"
+			echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+			read autoconfigchoice
 			
-			if [[ -f $cloudinit ]]
+			if [[ $autoconfigchoice == yes ]]
 				then
-					netdone=0
+					mv $netcfg $netcfg2
+					filefixed=1
+			
+					if [[ -f $cloudinit ]]
+						then
+							netdone=0
+						else
+							echo "network: {config: disabled}" > $cloudinit
+					fi
 				else
-					echo "network: {config: disabled}" >> $cloudinit
+					echo -e "${RED}Aborting due to configuration error.${NC}"
+					exit
 			fi
 	fi
 	
@@ -546,8 +559,13 @@ echo -e "$netcfg"
 	fi
 	
 	echo 0 > /proc/sys/net/ipv6/conf/all/disable_ipv6
-	sed -i "s/#//" $netcfg
-	sed -i '1{/^$/d}' $netcfg
+	
+	if [[ $filefixed == 0 ]]
+		then
+			sed -i "s/#//" $netcfg
+			sed -i '1{/^$/d}' $netcfg
+	fi
+	
 	netplan generate
 	netplan apply
 	sleep 5
