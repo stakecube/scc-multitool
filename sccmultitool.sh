@@ -14,7 +14,7 @@ discord='https://discord.gg/xxjZzJE'
 
 #pre-setup checks and dependencies installs
 echo -e "Checking/installing other script dependency's"
-apt -y -qq install curl zip unzip nano ufw software-properties-common pwgen
+apt -y -qq install curl zip unzip nano ufw software-properties-common pwgen p7zip-full p7zip-rar
 
 #setup variables for passwords
 pass=`pwgen 14 1 b`
@@ -66,7 +66,7 @@ echo -e "${YELLOW}7  - Masternode install"
 echo -e "${YELLOW}8  - Masternode stop/start/restart (stop/start/restart all ${ticker} nodes)"
 echo -e "${YELLOW}9  - Full chain repair by not using bootstrap"
 echo -e "${YELLOW}10 - Download/Update StakeCubeCoin local bootstrap file"
-echo -e "${YELLOW}11 - Not used"
+echo -e "${YELLOW}11 - Make/Update your StakeCubeCoin local bootstrap file from an existing SCC node"
 echo -e "${YELLOW}12 - Setup/Resize/Delete swap space with X MB swap space"
 echo -e "${YELLOW}13 - Check block count status against explorer"
 echo -e "${YELLOW}14 - Check MN health status and optional repair (all ${ticker} nodes)"
@@ -142,21 +142,21 @@ function chain_repair() {
 			if test -e "$sccfile"
 				then
 					#rsync -adm --info=progress2 /root/${coinname}.zip /home/$alias
-					unzip ~/${coinname}.zip
+					7za x ~/${coinname}.zip
 					echo -e "${YELLOW}$coinname local bootstrap directory updated${NC}"
 					#echo -e "${YELLOW}Removing copied temp file${NC}"
 					#rm /home/${alias}/${coinname}.zip
 				else
 					echo -e "${RED}File doesn't exist${NC}, ${YELLOW}downloading chain${NC}"
 					wget -nv --show-progress ${snapshot} -O ${coinname}.zip
-					unzip ${coinname}.zip
+					7za x ${coinname}.zip
 					echo -e "${YELLOW}$coinname chain directory updated${NC}"
 					echo -e "${YELLOW}Removing downloaded temp file${NC}"
 					rm /home/${alias}/${coinname}.zip
 			fi
 		else
 			wget -nv --show-progress ${snapshot} -O ${coinname}.zip
-			unzip ${coinname}.zip
+			7za x ${coinname}.zip
 			echo -e ""
 			echo -e "${YELLOW}$coinname chain directory setup${NC}"
 			echo -e "${YELLOW}Removing downloaded temp file${NC}"
@@ -187,7 +187,6 @@ function install_mn() {
 	echo -e "${YELLOW}Above are the alias names for the installed masternodes${NC}"
 	echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
 	echo -e "${YELLOW}To use other tools you must include ${CYAN}$ticker${YELLOW} in alias${NC}"
-	echo -e "${YELLOW}Example: ${CYAN}sccmn001${NC}"
 	read alias
 	echo -e ""
 	echo -e "${YELLOW}${UNDERLINE}Enter BLS secret key${NC}"
@@ -256,12 +255,18 @@ echo -e "$netcfg"
             dipv6=$(sed -n "$linenumber1"p $netcfg)
             spaces=$(echo -e "$dipv6" | tr -cd ' \t' | wc -c)
             spaces=$(( $spaces-2 ))
+			ipv6test="$(echo $dipv6 | grep -E '.{0,4}\/64')"
+			ipv6test2="$(echo $ipv6test | awk 'match($0,"/64"){print substr($0,RSTART-4,4)}')"
+			ipv6test3=$(( $ipv6test2 + $netconfcount + 50 ))
+			echo -e "ipv6test $ipv6test"
+			echo -e "ipv6test2 $ipv6test2"
+			echo -e "ipv6test3 $ipv6test3"
             echo -e " 2 $dipv6"
             echo -e " 3 $spaces"
             echo -e "$netconfcount"
-            cipv6=$(( $netconfcount+51 ))
+            cipv6=$(( $ipv6test3 ))
             echo -e "$cipv6"
-            ipv6="$(echo $dipv6 | sed "s/:0001/:$cipv6/g")"
+            ipv6="$(echo $dipv6 | sed "s/$ipv6test2/$cipv6/g")"
             echo -e "New IPv6 is $ipv6"
             test="$(echo -e "$(pad " " $spaces) ${ipv6}")"
             echo -e "$test"
@@ -338,7 +343,7 @@ EOF
 			echo -e "${YELLOW}Installing node binaries for ${MAGENTA}$alias{$NC}"
 			cd /usr/local/bin
 			wget -nv --show-progress ${binaries} -O ${coinname}.zip
-			unzip ${coinname}.zip
+			7za x ${coinname}.zip
 			chmod +x ${coinnamecli} ${coinnamed}
 			rm ${coinname}.zip
 			echo -e "${CYAN}$alias node binaries downloaded and installed${NC}"
@@ -393,21 +398,21 @@ EOF
 			if test -e "$sccfile"
 				then
 					#rsync -adm --info=progress2 /root/${coinname}.zip /home/$alias
-					unzip ~/${coinname}.zip
+					7za x ~/${coinname}.zip
 					echo -e "${YELLOW}$coinname local bootstrap directory updated${NC}"
 					echo -e "${YELLOW}Removing copied temp file${NC}"
 					#rm /home/${alias}/${coinname}.zip
 				else
 					echo -e "${RED}File doesn't exist${NC}, ${YELLOW}downloading chain${NC}"
 					wget -nv --show-progress ${snapshot} -O ${coinname}.zip
-					unzip ${coinname}.zip
+					7za x  ${coinname}.zip
 					echo -e "${YELLOW}$coinname chain directory updated${NC}"
 					echo -e "${YELLOW}Removing downloaded temp file${NC}"
 					rm /home/${alias}/${coinname}.zip
 			fi
 		else
 			wget -nv --show-progress ${snapshot} -O ${coinname}.zip
-			unzip ${coinname}.zip
+			7za x ${coinname}.zip
 			echo -e "${YELLOW}$coinname chain directory setup${NC}"
 			echo -e "${YELLOW}Removing downloaded temp file${NC}"
 			rm /home/${alias}/${coinname}.zip
@@ -698,7 +703,7 @@ case $start in
 		cd /usr/local/bin
 		rm $coinnamecli $coinnamed
 		wget -nv --show-progress ${binaries} -O ${coinname}.zip
-		unzip -o ${coinname}.zip
+		7za x -o ${coinname}.zip
 		chmod +x ${coinnamecli} ${coinnamed}
 		rm ${coinname}.zip
 		cd /root
@@ -852,7 +857,35 @@ case $start in
 
 	;;
 
-	11)	exit
+	11)	echo -e "${YELLOW}Beginning creation of bootstrap file${NC}"
+		echo -e ""
+		ls /home
+		echo -e ""
+		echo -e "${YELLOW}Above are the alias names for the installed masternodes that you can create the bootstrap from${NC}"
+		echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
+		read alias
+		echo -e ""
+		echo -e "${YELLOW}Stopping node ${CYAN}$alias${NC}"
+		echo -e ""
+		
+		systemctl stop $alias.service
+		sleep 5
+		
+		echo -e "${YELLOW}Starting the zip process${NC}"
+		
+		rm ~/stakecubecoin.zip
+		
+		cd /home/$alias
+		7za a -tzip -r '-xr!wallet.dat' '-xr!*.conf' -- ~/stakecubecoin.zip .scc/*
+		
+		echo -e ""
+		echo -e "${YELLOW}Done creating offline boostrap file${NC}"
+		echo -e ""
+		echo -e "${YELLOW}Starting ${CYAN}$alias${NC}"
+		
+		systemctl start $alias.service
+		
+		exit
 
 	;;
 
