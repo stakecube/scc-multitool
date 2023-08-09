@@ -14,7 +14,7 @@ discord='https://discord.gg/xxjZzJE'
 
 #pre-setup checks and dependencies installs
 echo -e "Checking/installing other script dependency's"
-apt -y -qq install curl zip unzip nano ufw software-properties-common pwgen p7zip-full p7zip-rar
+apt -y -qq install curl zip unzip nano ufw software-properties-common pwgen p7zip-full p7zip-rar 7zip
 
 #setup variables for passwords
 pass=`pwgen 14 1 b`
@@ -84,19 +84,40 @@ function is_number() {
 # Author: neo3587
 # Source: https://github.com/neo3587/dupmn
 
-		# <$1 = number>
-        [[ "$1" =~ ^[0-9]+$ ]] && echo "1"
+	# <$1 = number>
+    [[ "$1" =~ ^[0-9]+$ ]] && echo "1"
+
 }
 
-function pad () {
+function pad() {
 
 	[ "$#" -gt 1 ] && [ -n "$2" ] && printf "%$2.${2#-}s" "$1";
 
 }
 
+function checkyesno() {
+
+	local yesno=$1
+	
+	if [[ $yesno == "yes" ]] || [[ $yesno == "no" ]]
+		then
+			return
+		else
+			echo -e "${YELLOW}Please enter only${CYAN} yes/y${YELLOW} or${CYAN} no/n${NC}"
+			echo -e ""
+			echo -e "${RED}Aborting script${NC}"
+
+			exit
+			
+	fi
+
+}
+
+
+
 function chain_repair() {
 
-	bootstrapchoice=$2
+	local bootstrapchoice=$2
 
 	if [[ $1 == "" ]]
 		then
@@ -125,6 +146,7 @@ function chain_repair() {
 			echo -e "${YELLOW}Use offline bootstrap?${NC}"
 			echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 			read bootstrapchoice
+			checkyesno $bootstrapchoice
 		else
 			echo -e "${YELLOW}Using offline bootstrap file${NC}"
 	fi
@@ -142,21 +164,21 @@ function chain_repair() {
 			if test -e "$sccfile"
 				then
 					#rsync -adm --info=progress2 /root/${coinname}.zip /home/$alias
-					7za x ~/${coinname}.zip
+					7zz x ~/${coinname}.zip
 					echo -e "${YELLOW}$coinname local bootstrap directory updated${NC}"
 					#echo -e "${YELLOW}Removing copied temp file${NC}"
 					#rm /home/${alias}/${coinname}.zip
 				else
 					echo -e "${RED}File doesn't exist${NC}, ${YELLOW}downloading chain${NC}"
 					wget -nv --show-progress ${snapshot} -O ${coinname}.zip
-					7za x ${coinname}.zip
+					7zz x ${coinname}.zip
 					echo -e "${YELLOW}$coinname chain directory updated${NC}"
 					echo -e "${YELLOW}Removing downloaded temp file${NC}"
 					rm /home/${alias}/${coinname}.zip
 			fi
 		else
 			wget -nv --show-progress ${snapshot} -O ${coinname}.zip
-			7za x ${coinname}.zip
+			7zz x ${coinname}.zip
 			echo -e ""
 			echo -e "${YELLOW}$coinname chain directory setup${NC}"
 			echo -e "${YELLOW}Removing downloaded temp file${NC}"
@@ -202,7 +224,11 @@ function install_mn() {
 	echo -e "${YELLOW}Would you like to setup with an IPv6 address?{$NC}"
 	echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 	read ipchoice
-
+	
+	checkyesno $ipchoice
+	
+	echo -e "Passed yes/no check"
+	
 	#script dependency
 	echo -e "Checking/installing dependency for auto IP setup"
 
@@ -306,6 +332,8 @@ echo -e "$netcfg"
 	echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 	read bootstrapchoice
 
+	checkyesno $bootstrapchoice
+	
 	echo -e ""
 	ufw allow ssh
 
@@ -343,7 +371,7 @@ EOF
 			echo -e "${YELLOW}Installing node binaries for ${MAGENTA}$alias{$NC}"
 			cd /usr/local/bin
 			wget -nv --show-progress ${binaries} -O ${coinname}.zip
-			7za x ${coinname}.zip
+			7zz x ${coinname}.zip
 			chmod +x ${coinnamecli} ${coinnamed}
 			rm ${coinname}.zip
 			echo -e "${CYAN}$alias node binaries downloaded and installed${NC}"
@@ -376,7 +404,7 @@ EOF
 	echo -e "Restart=always" >> $alias.service
 	echo -e "PrivateTmp=true" >> $alias.service
 	echo -e "TimeoutStopSec=6000s" >> $alias.service
-	echo -e "TimeoutStartSec=30s" >> $alias.service
+	echo -e "TimeoutStartSec=300s" >> $alias.service
 	echo -e "StartLimitInterval=120s" >> $alias.service
 	echo -e "StartLimitBurst=5" >> $alias.service
 	echo -e "" >> $alias.service
@@ -398,21 +426,21 @@ EOF
 			if test -e "$sccfile"
 				then
 					#rsync -adm --info=progress2 /root/${coinname}.zip /home/$alias
-					7za x ~/${coinname}.zip
+					7zz x ~/${coinname}.zip
 					echo -e "${YELLOW}$coinname local bootstrap directory updated${NC}"
 					echo -e "${YELLOW}Removing copied temp file${NC}"
 					#rm /home/${alias}/${coinname}.zip
 				else
 					echo -e "${RED}File doesn't exist${NC}, ${YELLOW}downloading chain${NC}"
 					wget -nv --show-progress ${snapshot} -O ${coinname}.zip
-					7za x  ${coinname}.zip
+					7zz x  ${coinname}.zip
 					echo -e "${YELLOW}$coinname chain directory updated${NC}"
 					echo -e "${YELLOW}Removing downloaded temp file${NC}"
 					rm /home/${alias}/${coinname}.zip
 			fi
 		else
 			wget -nv --show-progress ${snapshot} -O ${coinname}.zip
-			7za x ${coinname}.zip
+			7zz x ${coinname}.zip
 			echo -e "${YELLOW}$coinname chain directory setup${NC}"
 			echo -e "${YELLOW}Removing downloaded temp file${NC}"
 			rm /home/${alias}/${coinname}.zip
@@ -626,6 +654,39 @@ function setup_swap() {
 }
 
 
+function offlinechainfilebuild() {
+
+		echo -e "${YELLOW}Beginning creation of offline bootstrap file${NC}"
+		echo -e ""
+		ls /home
+		echo -e ""
+		echo -e "${YELLOW}Above are the alias names for the installed masternodes that you can create the bootstrap from${NC}"
+		echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
+		read alias
+		echo -e ""
+		echo -e "${YELLOW}Stopping node ${CYAN}$alias${NC}"
+		echo -e ""
+		
+		systemctl stop $alias.service
+		sleep 5
+		
+		echo -e "${YELLOW}Starting the zip process${NC}"
+		
+		rm ~/stakecubecoin.zip
+		
+		cd /home/$alias
+		7zz a -tzip -r '-xr!wallet.dat' '-xr!*.conf' '-xr!debug.log' -- ~/stakecubecoin.zip .scc/*
+		
+		echo -e ""
+		echo -e "${YELLOW}Done creating offline boostrap file${NC}"
+		echo -e ""
+		echo -e "${YELLOW}Starting ${CYAN}$alias${NC}"
+		
+		systemctl start $alias.service
+		
+		return
+}
+
 
 case $start in
 #Tools
@@ -703,7 +764,7 @@ case $start in
 		cd /usr/local/bin
 		rm $coinnamecli $coinnamed
 		wget -nv --show-progress ${binaries} -O ${coinname}.zip
-		7za x -o ${coinname}.zip
+		7zz x -o ${coinname}.zip
 		chmod +x ${coinnamecli} ${coinnamed}
 		rm ${coinname}.zip
 		cd /root
@@ -755,7 +816,7 @@ case $start in
 		systemctl stop $alias
 		echo -e ""
 		echo -e "${YELLOW}Pausing script to ensure ${MAGENTA}$alias${YELLOW} has stopped${NC}"
-		sleep 30
+		sleep 20
 		systemctl disable $alias
 		rm /usr/local/bin/$alias
 		rm /etc/systemd/system/$alias.service
@@ -850,44 +911,50 @@ case $start in
 
 	;;
 
-	10)	echo -e "${CYAN}Downloading updated bootstrap for offline install/repair${NC}"
+	10)	echo -e "${CYAN}Downloading updated bootstrap for offline install/repair from StakeCube${NC}"
 		cd /root
 		wget -nv --show-progress ${snapshot} -O ${coinname}.zip
 		exit
 
 	;;
 
-	11)	echo -e "${YELLOW}Beginning creation of bootstrap file${NC}"
-		echo -e ""
-		ls /home
-		echo -e ""
-		echo -e "${YELLOW}Above are the alias names for the installed masternodes that you can create the bootstrap from${NC}"
-		echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
-		read alias
-		echo -e ""
-		echo -e "${YELLOW}Stopping node ${CYAN}$alias${NC}"
-		echo -e ""
-		
-		systemctl stop $alias.service
-		sleep 5
-		
-		echo -e "${YELLOW}Starting the zip process${NC}"
-		
-		rm ~/stakecubecoin.zip
-		
-		cd /home/$alias
-		7za a -tzip -r '-xr!wallet.dat' '-xr!*.conf' -- ~/stakecubecoin.zip .scc/*
-		
-		echo -e ""
-		echo -e "${YELLOW}Done creating offline boostrap file${NC}"
-		echo -e ""
-		echo -e "${YELLOW}Starting ${CYAN}$alias${NC}"
-		
-		systemctl start $alias.service
-		
+	11)	offlinechainfilebuild
+	
 		exit
-
+		
 	;;
+	
+#	echo -e "${YELLOW}Beginning creation of offline bootstrap file${NC}"
+#		echo -e ""
+#		ls /home
+#		echo -e ""
+#		echo -e "${YELLOW}Above are the alias names for the installed masternodes that you can create the bootstrap from${NC}"
+#		echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
+#		read alias
+#		echo -e ""
+#		echo -e "${YELLOW}Stopping node ${CYAN}$alias${NC}"
+#		echo -e ""
+#		
+#		systemctl stop $alias.service
+#		sleep 5
+#		
+#		echo -e "${YELLOW}Starting the zip process${NC}"
+#		
+#		rm ~/stakecubecoin.zip
+#		
+#		cd /home/$alias
+#		7zz a -tzip -r '-xr!wallet.dat' '-xr!*.conf' -- ~/stakecubecoin.zip .scc/*
+#		
+#		echo -e ""
+#		echo -e "${YELLOW}Done creating offline boostrap file${NC}"
+#		echo -e ""
+#		echo -e "${YELLOW}Starting ${CYAN}$alias${NC}"
+#		
+#		systemctl start $alias.service
+#		
+#		exit
+#
+#	;;
 
 #	echo "Setting up X MB swap file"
 #
@@ -984,60 +1051,243 @@ case $start in
 
 	14)	echo -e "Beginning Status Checks of Nodes"
 
+		updatechainfile=0
+		offlinerepairall=0
+		updateallnodes=0
+		blockcompare=0
+
 		for i in $(ls /home/); do
 
-			echo -e "${YELLOW}Checking for ${CYAN}$ticker ${YELLOW}MN's${NC}"
-			echo -e ""
+			echo -e "${YELLOW}Checking for $ticker MN's${NC}"
 			echo -e "found ${CYAN}$i${NC}..."
-			echo -e ""
+#			echo -e ""
 
 			if [[ $i == *scc* ]]
 				then
+					updatechainfilelocal=0
 					mn_status=0
 					mn_status=$($i masternode status)
 					mn_status_exitcode=$?
+					mn_status_exitcode2=0
+					
+#					echo -e "$mn_status"
+#					echo -e ""
+#					echo -e "${CYAN}$i${NC}"
 
+					grep -e 'state' <<< $mn_status
+					grep -e 'status' <<< $mn_status
+					
+					if grep -q 'POSE' <<< $mn_status
+						then 
+							mn_status_exitcode2=1
+							echo -e "Got here POSE"
+					fi
+					
+					if grep -q 'ERROR' <<< $mn_status
+						then 
+							mn_status_exitcode2=1
+							echo -e "Got here ERROR"
+					fi
+
+#					if grep -q 'WAITING' <<< $mn_status
+#						then 
+#							mn_status_exitcode2=1
+#							echo -e "Got here Waiting"
+#					fi
+
+#					grep -e 'ERROR' <<< $mn_status > /dev/null
+#					mn_status_exitcode2=$?
+					echo -e ""
+					
+					if [[ $mn_status_exitcode != 0 ]] || [[ $mn_status_exitcode2 != 0 ]]
+						then
+							mn_status_exitcode=1
+						else
+							echo -e "${YELLOW}Appears to be in good shape${NC}"
+							mn_status_exitcode=0
+							mn_status_exitcode2=0
+					fi
+				
 					if [[ $mn_status_exitcode != 0 ]]
 						then
 							echo -e "${RED}Something appears to be wrong with node ${CYAN}$i${NC}"
 							echo -e ""
-							echo -e "${YELLOW}Do you wish to initiate repair of this node${NC}"
-							echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
-							read repairnode
-
-							if [[ $repairnode == yes ]]
+							
+							if [[ $updateallnodes == 0 ]]
 								then
-									chain_repair "$i"
-								else
-									echo -e "${RED}Not repairing node at this time${NC}"
-							fi 
-						else
-
-#							echo -e "$mn_status"
-#							echo -e ""
-#							echo -e "${CYAN}$i${NC}"
-							grep -e 'state' <<< $mn_status
-							grep -e 'status' <<< $mn_status
-							grep -e 'POSE' <<< $mn_status > /dev/null
-							grep -e 'ERROR' <<< $mn_status > /dev/null
-							mn_status_exitcode=$?
-
-							if [ $mn_status_exitcode -eq 0 ]
-								then
-									echo -e "${RED}POSE_BANNED{$NC}"
-									echo -e ""
 									echo -e "${YELLOW}Do you wish to initiate repair of this node${NC}"
 									echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 									read repairnode
-
-									if [[ $repairnode == yes ]]
+									checkyesno $repairnode
+							fi
+							
+							if [[ $repairnode == yes ]]
+								then
+									if [[ $updatechainfile == 0 ]]
 										then
-											chain_repair "$i"
-										else
-											echo -e "${RED}Not repairing node at this time${NC}"
-									fi 
+											echo -e ""
+											echo -e "${YELLOW}Do you wish to update the offline chain file first?"
+											echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+											read updatechainfile
+											checkyesno $updatechainfile
+
+											if [[ $updatechainfile == "yes" ]]
+												then
+													echo -e ""
+													echo -e "${YELLOW}Update from local node or from the web?${NC}"
+													echo -e "${CYAN}Yes ${YELLOW}for local copy or ${CYAN}No ${YELLOW}for Web download${NC}"
+													echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+													read updatechainfilelocal
+													checkyesno $updatechainfilelocal
+													
+													if [[ $updatechainfilelocal == "yes" ]]
+														then
+															offlinechainfilebuild
+														else
+															echo -e "${CYAN}Downloading updated bootstrap for offline install/repair${NC}"
+															cd /root
+															wget -nv --show-progress ${snapshot} -O ${coinname}.zip
+															echo -e ""
+													fi
+											fi
+									fi
+
+									repairnode="yes"
+									
 								else
-									echo -e "${YELLOW}Appears to be in good shape${NC}"
+									echo -e ""
+									echo -e "${RED}Not repairing node at this time${NC}"
+									echo -e ""
+									mn_status_exitcode=0
+									mn_status=0
+									
+							fi 
+					fi
+					
+					if [[ $mn_status_exitcode != 0 ]]  || [[ $mn_status_exitcode2 != 0 ]]
+						then
+											if [[ $offlinerepairall == "no" ]] || [[ $offlinerepairall == 0 ]]
+												then
+													if [[ $offlinerepairall != "no" ]]
+														then
+															echo -e ""
+															echo -e "${YELLOW}Do you wish to use offline bootstrap for all repairs?"
+															echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+															read offlinerepairall
+															checkyesno $offlinerepairall
+													fi
+											fi
+											
+											if [[ $updateallnodes != "yes" ]]
+												then
+#													echo -e "${YELLOW}Do you wish to chain repair this node?${NC}"
+#													echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+#													read repairnode
+#													checkyesno $repairnode
+#													echo -e ""
+
+													if [[ $repairnode == "yes" ]]
+														then
+															echo -e ""
+															echo -e "${YELLOW}Do you wish to repair all nodes automatically?${NC}"
+															echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+															read updateallnodes
+															checkyesno $updateallnodes
+													fi
+											fi
+
+											if [[ $offlinerepairall == "yes" ]]
+												then
+													if [[ $repairnode == "no" ]]
+														then
+															echo -e "${YELLOW}Skipping repair${NC}"
+														else
+															chain_repair $i "yes"
+													fi
+												else
+													if [[ $repairnode == "yes" ]]
+														then
+															chain_repair $i "no"
+														else
+															echo -e "${YELLOW}Skipping repair${NC}"
+													fi
+											fi
+
+						else
+							if [[ $mn_status_exitcode != 0 ]]  || [[ $mn_status_exitcode2 != 0 ]]
+								then
+								echo -e ""
+								echo -e "${RED}Something is wrong with ${CYAN}$i${NC}"
+								echo -e ""
+
+								if [[ $updatechainfile == 0 ]] && [[ $mn_status != 0 ]]
+									then
+										echo -e "${YELLOW}Do you wish to update the offline chain file first?"
+										echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+										read updatechainfile
+										checkyesno $updatechainfile
+
+										if [[ $updatechainfile == "yes" ]]
+											then
+												echo -e ""
+												echo -e "${YELLOW}Update from local node or from the web?${NC}"
+												echo -e "${CYAN}Yes ${YELLOW}for local copy or ${CYAN}No ${YELLOW}for Web download${NC}"
+												echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+												read updatechainfilelocal
+												checkyesno $updatechainfilelocal
+
+												if [[ $updatechainfilelocal == "yes" ]]
+													then
+														offlinechainfilebuild
+													else
+														echo -e "${CYAN}Downloading updated bootstrap for offline install/repair${NC}"
+														cd /root
+														wget -nv --show-progress ${snapshot} -O ${coinname}.zip
+														echo -e ""
+												fi
+										fi
+
+										if [[ $offlinerepairall == 0 ]]
+											then
+												echo -e ""
+												echo -e "${YELLOW}Do you wish to use offline bootstrap for all repairs?"
+												echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+												read offlinerepairall
+												checkyesno $offlinerepairall
+												echo -e ""
+										fi
+
+										if [[ $updateallnodes == "yes" ]]
+											then
+												repairmode="yes"
+											else
+												if [[ $repairnode == "yes" ]]
+													then
+														echo -e "${YELLOW}Do you wish to repair all nodes automatically?${NC}"
+														echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+														read updateallnodes
+														checkyesno $updateallnodes
+														echo -e ""
+												fi
+										fi
+
+										if [[ $offlinerepairall == "yes" ]]
+											then
+												if [[ $repairnode == "no" ]]
+													then
+														echo -e "${YELLOW}Skipping repair${NC}"
+													else
+														chain_repair $i "yes"
+												fi
+											else
+												if [[ $repairnode == "yes" ]]
+													then
+														chain_repair $i "no"
+													else
+														echo -e "${YELLOW}Skipping repair${NC}"
+												fi
+										fi
+								fi
 							fi
 					fi
 				else
@@ -1047,11 +1297,16 @@ case $start in
 			echo -e ""
 
 		done
+
+		exit
+
 	;;
+
 
 	15)	echo -e "Beginning Explorer comparison tool with optional repair"
 
 		updatechainfile=0
+		updatechainfilelocal=0
 		offlinerepairall=0
 		updateallnodes=0
 		blockcompare=0
@@ -1093,16 +1348,30 @@ case $start in
 
 											if [[ $updatechainfile == 0 ]]
 												then
+													echo -e ""
 													echo -e "${YELLOW}Do you wish to update the offline chain file first?"
 													echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 													read updatechainfile
+													checkyesno $updatechainfile
 
 													if [[ $updatechainfile == "yes" ]]
 														then
-															echo -e "${CYAN}Downloading updated bootstrap for offline install/repair${NC}"
-															cd /root
-															wget -nv --show-progress ${snapshot} -O ${coinname}.zip
 															echo -e ""
+															echo -e "${YELLOW}Update from local node or from the web?${NC}"
+															echo -e "${CYAN}Yes ${YELLOW}for local copy or ${CYAN}No ${YELLOW}for Web download${NC}"
+															echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+															read updatechainfilelocal
+															checkyesno $updatechainfilelocal
+													
+															if [[ $updatechainfilelocal == "yes" ]]
+																then
+																	offlinechainfilebuild
+																else
+																	echo -e "${CYAN}Downloading updated bootstrap for offline install/repair${NC}"
+																	cd /root
+																	wget -nv --show-progress ${snapshot} -O ${coinname}.zip
+																	echo -e ""
+															fi
 													fi
 											fi
 
@@ -1238,4 +1507,3 @@ case $start in
 
 
     esac
-
