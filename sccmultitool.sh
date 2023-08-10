@@ -72,6 +72,7 @@ echo -e "${YELLOW}13 - Check block count status against explorer"
 echo -e "${YELLOW}14 - Check MN health status and optional repair (all ${ticker} nodes)"
 echo -e "${YELLOW}15 - Check block count and optional chain repair (all ${ticker} nodes)"
 echo -e "${YELLOW}16 - Check status of disk space and memory usage"
+echo -e "${YELLOW}17 - Check and install/update service files for sleep delay"
 echo -e ""
 echo -e "${YELLOW}0  - Exit"
 echo -e "${NC}"
@@ -360,6 +361,23 @@ EOF
 	echo -e "${CYAN}User ${CYAN}$alias${CYAN} setup${NC}"
 	echo -e ""
 
+	#Sleep/Delay check and install
+	cd /usr/local/bin
+	sleepnumberfile=/usr/local/bin/sleepnumberfile
+	if test -e "$sleepnumberfile"
+		then
+			echo -e "${CYAN}Sleep/delay file exists, not creating${NC}"
+			echo -e ""
+		else
+			echo -e "${CYAN}Installing sleep/delay file${NC}"
+			cd /usr/local/bin
+			echo -e "#!/bin/bash" >> $sleepnumberfile
+			echo -e "MINWAIT=10" >> $sleepnumberfile
+			echo -e "MAXWAIT=310" >> $sleepnumberfile
+			echo -e "sleep $((MINWAIT+RANDOM%(MAXWAIT-MINWAIT)))" >> $sleepnumberfile
+			chmod +x $sleepnumberfile
+	fi
+
 	#Node binaries check and install if needed
 	cd /usr/local/bin
 	binfile=/usr/local/bin/${coinnamecli}
@@ -398,6 +416,7 @@ EOF
 	echo -e "Group=root" >> $alias.service
 	echo -e "" >> $alias.service
 	echo -e "Type=forking" >> $alias.service
+	echo -e "ExecStartPre=/usr/local/bin/sleeprandom" >> $alias.service
 	echo -e "ExecStart=/usr/local/bin/$coinnamed -daemon -conf=/home/$alias/.$coindir/$coinname.conf -datadir=/home/$alias/.$coindir">> $alias.service
 	echo -e "ExecStop=-/usr/local/bin/$coinnamecli -conf=/home/$alias/.$coindir/$coinname.conf -datadir=/home/$alias/.$coindir stop" >> $alias.service
 	echo -e "" >> $alias.service
@@ -1320,6 +1339,14 @@ case $start in
 			if [[ $i == *scc* ]]
 				then
 					currentblock=$(curl -s http://79.143.186.234/api/getblockcount)
+					currentblockstatus=$?
+
+					if [[ $currentblockstatus == 1 ]]
+						then
+							echo -e "${YELLOW}Explorer not responding${NC}"
+							exit
+					fi
+
 					nodeblock=0
 					nodeblock=$($i getblockcount)
 					nodestatus=$?
@@ -1362,7 +1389,7 @@ case $start in
 															echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 															read updatechainfilelocal
 															checkyesno $updatechainfilelocal
-													
+
 															if [[ $updatechainfilelocal == "yes" ]]
 																then
 																	offlinechainfilebuild
@@ -1505,5 +1532,63 @@ case $start in
 			exit
 	;;
 
+		17)	echo -e "${YELLOW}Beginning Sleep delay install/update tool${NC}"
+
+			cd /etc/systemd/system
+			sleepnumberfile=/usr/local/bin/sleeprandom
+			if test -e "$sleepnumberfile"
+				then
+					echo -e "${CYAN}Sleep/delay file exists, not creating${NC}"
+					echo -e ""
+				else
+					echo -e "${CYAN}Installing sleep/delay file${NC}"
+					cd /usr/local/bin
+					echo -e "#!/bin/bash" >> $sleepnumberfile
+					echo -e "MINWAIT=10" >> $sleepnumberfile
+					echo -e "MAXWAIT=310" >> $sleepnumberfile
+					echo -e 'sleep $((MINWAIT+RANDOM%(MAXWAIT-MINWAIT)))' >> $sleepnumberfile
+					chmod +x $sleepnumberfile
+			fi
+
+			echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} MN service files${NC}"
+
+			foundone=0
+
+			for i in $(ls /etc/systemd/system/)
+				do
+					if [[ $i == *scc* ]]
+						then
+
+							foundone=1
+
+							echo -e "${YELLOW}found ${CYAN}$i${YELLOW}...${NC}"
+							echo -e ""
+							echo -e "${CyAN}Checking file ${MAGENTA}$i${NC}"
+
+							grepkcheck1=$(grep -Fxq 'ExecStartPre=/usr/local/bin/sleeprandom' /etc/systemd/system/$i)
+							grepcheckstatus=$?
+
+							if [[ $grepcheckstatus == 0 ]]
+								then
+									echo -e "${CYAN}$i already updated${NC}"
+								else
+									sed -i '/^ExecStart=.*/i ExecStartPre=/usr/local/bin/sleeprandom' $i
+									echo -e "${CYAN}Updated ${MAGENTA}$i${NC}"
+									echo -e ""
+									echo -e "${YELLOW}Reloading system config daemon files${NC}"
+									echo -e ""
+									systemctl daemon-reload
+							fi
+					fi
+				done
+
+			if [[ $foundone == 0 ]]
+				then
+					echo -e "${CYAN}Found no SCC node files${NC}"
+			fi
+
+			exit
+
+		;;
 
     esac
