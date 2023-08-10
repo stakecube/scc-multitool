@@ -1572,7 +1572,7 @@ case $start in
 								then
 									echo -e "${CYAN}$i already updated${NC}"
 								else
-									sed -i '/^ExecStart=.*/i ExecStartPre=/usr/local/bin/sleeprandom' $i
+									sed -i '/^ExecStart=.*/i ExecStartPre=/usr/local/bin/sleeprandom' /etc/systemd/system/$i
 									echo -e "${CYAN}Updated ${MAGENTA}$i${NC}"
 									echo -e ""
 									echo -e "${YELLOW}Reloading system config daemon files${NC}"
