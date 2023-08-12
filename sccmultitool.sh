@@ -73,8 +73,17 @@ echo -e "${YELLOW}14 - Check MN health status and optional repair (all ${ticker}
 echo -e "${YELLOW}15 - Check block count and optional chain repair (all ${ticker} nodes)"
 echo -e "${YELLOW}16 - Check status of disk space and memory usage"
 echo -e "${YELLOW}17 - Check and install/update service files for sleep delay"
+echo -e "${YELLOW}18 - Install New Node with manually specified IPv6 Address"
 echo -e ""
 echo -e "${YELLOW}0  - Exit"
+echo -e ""
+echo -e "${RED}Warning: ${MAGENTA}This script now uses a sleep delay of up to 5 minutes per node startup${NC}"
+echo -e "${MAGENTA}This helps to prevent the VPS from being overloaded upon reboot when there are many nodes installed${NC}"
+echo -e "${MAGENTA}This can make the install/start/restart/repair node(s) look like it has stopped working${NC}"
+echo -e "${MAGENTA}This is a side effect of the delay only(If it occurs)${NC}"
+echo -e ""
+echo -e "${YELLOW}Please run the check install/update service files before installing nodes${NC}"
+echo -e "${YELLOW}It only needs to be ran once${NC}"
 echo -e "${NC}"
 read -p "> " start
 echo -e ""
@@ -99,7 +108,7 @@ function pad() {
 function checkyesno() {
 
 	local yesno=$1
-	
+
 	if [[ $yesno == "yes" ]] || [[ $yesno == "no" ]]
 		then
 			return
@@ -109,12 +118,73 @@ function checkyesno() {
 			echo -e "${RED}Aborting script${NC}"
 
 			exit
-			
+
 	fi
 
 }
 
+function checkipv6file() {
 
+	local netdone=0
+	netcfg=/etc/netplan/01-netcfg.yaml
+
+	if [[ $netdone == 0 ]] 
+		then
+			if [[ -f $netcfg ]] 
+				then
+					netdone=1
+				else
+					netcfg=/etc/netplan/00-installer-config.yaml
+					netdone=0
+			fi
+	fi
+
+echo -e "$netdone"
+echo -e "$netcfg"
+
+	if [[ $netdone == 0 ]] 
+		then
+			if [[ -f $netcfg ]]
+				then
+					netcfg=/etc/netplan/00-installer-config.yaml
+					netdone=1
+				else
+					netdone=0
+			fi
+	fi
+
+echo -e "$netdone"
+echo -e "$netcfg"
+
+	if [[ $netdone == 0 ]]
+		then
+			echo -e "${MAGENTA}Error - network config file not found (01-netcfg.yaml or 00-installer-config.yaml)${NC}"
+			exit
+	fi
+
+}
+
+function sleeprandomfilecheck() {
+
+			local sleepnumberfile=/usr/local/bin/sleeprandom
+
+			cd /etc/systemd/system
+
+			if test -e "$sleepnumberfile"
+				then
+					echo -e "${CYAN}Sleep/delay file exists, not creating${NC}"
+					echo -e ""
+				else
+					echo -e "${CYAN}Installing sleep/delay file${NC}"
+					cd /usr/local/bin
+					echo -e "#!/bin/bash" >> $sleepnumberfile
+					echo -e "MINWAIT=10" >> $sleepnumberfile
+					echo -e "MAXWAIT=310" >> $sleepnumberfile
+					echo -e 'sleep $((MINWAIT+RANDOM%(MAXWAIT-MINWAIT)))' >> $sleepnumberfile
+					chmod +x $sleepnumberfile
+			fi
+
+}
 
 function chain_repair() {
 
@@ -188,7 +258,7 @@ function chain_repair() {
 
 	chown -R $alias /home/${alias}
 	echo -e "${CYAN}Starting $alias after repair${NC}"
-	systemctl start ${alias}.service
+	systemctl start --no-block ${alias}.service
 	sleep 10
 	echo -e ""
 	echo -e "${YELLOW}Please wait for a moment.. and use ${CYAN}$alias masternode status${YELLOW} to check if $alais is ready for POSE unban or still showing READY${NC}"
@@ -201,6 +271,19 @@ function chain_repair() {
 
 function install_mn() {
 
+	local bypassipv6setup=$1
+	local bypassipv6addr=$2
+
+	if [[ $bypassipv6setup == yes ]]
+		then
+#			test=$bypassipv6addr
+			echo -e "${MAGENTA}Setting config file for IPV6 address $bypassipv6addr${NC}"
+			echo -e ""
+			ipchoice=yes
+#		else
+#			test=0
+	fi
+
 	#get user input alias and bind set varible#
 	echo -e ""
 	echo -e "${YELLOW}Checking home directory for masternode alias's${NC}"
@@ -209,10 +292,10 @@ function install_mn() {
 	echo -e ""
 	echo -e "${YELLOW}Above are the alias names for the installed masternodes${NC}"
 	echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
-	echo -e "${YELLOW}To use other tools you must include ${CYAN}$ticker${YELLOW} in alias${NC}"
+	echo -e "${YELLOW}To use other tools you must include ${CYAN}$ticker${YELLOW} in the alias${NC}"
 	read alias
 	echo -e ""
-	echo -e "${YELLOW}${UNDERLINE}Enter BLS secret key${NC}"
+	echo -e "${YELLOW}${UNDERLINE}Enter the BLS secret key${NC}"
 	read key
 	echo -e ""
 	echo -e "${YELLOW}${UNDERLINE}Please enter a unique RPC port number. Default is ${CYAN}$rpcport${NC}"
@@ -220,84 +303,53 @@ function install_mn() {
 	echo -e "${YELLOW}So it's 4(node number)0 (40010 for sccmn001)${NC}"
 	read rpcport
 
-	#IPv4/v6 choice and setup
-	echo -e ""
-	echo -e "${YELLOW}Would you like to setup with an IPv6 address?{$NC}"
-	echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
-	read ipchoice
-	
-	checkyesno $ipchoice
-	
-	echo -e "Passed yes/no check"
-	
-	#script dependency
-	echo -e "Checking/installing dependency for auto IP setup"
-
-	if [[ $ipchoice == yes ]]
+	if [[ $bypassipv6setup == no ]]
 		then
-			#set default IPv6
-			netdone=0
-			netcfg=/etc/netplan/01-netcfg.yaml
 
-			if [[ $netdone == 0 ]] 
+			#IPv4/v6 choice and setup
+			echo -e ""
+			echo -e "${YELLOW}Would you like to setup with an IPv6 address?{$NC}"
+			echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+			read ipchoice
+
+			checkyesno $ipchoice
+
+			echo -e "Passed yes/no check"
+
+			#script network config dependency
+			echo -e "Checking/installing dependency for auto IP setup"
+
+			if [[ $ipchoice == yes ]]
 				then
-					if [[ -f $netcfg ]] 
-						then
-							netdone=1
-						else
-							netcfg=/etc/netplan/00-installer-config.yaml
-							netdone=0
-					fi
-			fi
+					#set default IPv6
 
-echo -e "$netdone"
-echo -e "$netcfg"
+					checkipv6file
 
-			if [[ $netdone == 0 ]] 
-				then
-					if [[ -f $netcfg ]]
-						then
-							netcfg=/etc/netplan/00-installer-config.yaml
-							netdone=1
-						else
-							netdone=0
-					fi
-			fi
-
-echo -e "$netdone"
-echo -e "$netcfg"
-
-			if [[ $netdone == 0 ]]
-				then
-					echo -e "${MAGENTA}Error - network config file not found (01-netcfg.yaml or 00-installer-config.yaml)${NC}"
-					exit
-			fi
-
-            sed -i '1{/^$/d}' $netcfg
-            netconfcount=$(grep -c :0000:0000 $netcfg)
-            linenumber1=$((grep -n ":0000:0000" $netcfg) | cut -d\: -f1 | head -n 1)
-            linenumber2=$(( $linenumber1+$netconfcount ))
-            echo -e "$linenumber1"
-            echo -e "$linenumber2"
-            dipv6=$(sed -n "$linenumber1"p $netcfg)
-            spaces=$(echo -e "$dipv6" | tr -cd ' \t' | wc -c)
-            spaces=$(( $spaces-2 ))
-			ipv6test="$(echo $dipv6 | grep -E '.{0,4}\/64')"
-			ipv6test2="$(echo $ipv6test | awk 'match($0,"/64"){print substr($0,RSTART-4,4)}')"
-			ipv6test3=$(( $ipv6test2 + $netconfcount + 50 ))
-			echo -e "ipv6test $ipv6test"
-			echo -e "ipv6test2 $ipv6test2"
-			echo -e "ipv6test3 $ipv6test3"
-            echo -e " 2 $dipv6"
-            echo -e " 3 $spaces"
-            echo -e "$netconfcount"
-            cipv6=$(( $ipv6test3 ))
-            echo -e "$cipv6"
-            ipv6="$(echo $dipv6 | sed "s/$ipv6test2/$cipv6/g")"
-            echo -e "New IPv6 is $ipv6"
-            test="$(echo -e "$(pad " " $spaces) ${ipv6}")"
-            echo -e "$test"
-            sed -i "${linenumber2}i\\${test}" $netcfg
+					sed -i '1{/^$/d}' $netcfg
+					netconfcount=$(grep -c :0000:0000 $netcfg)
+					linenumber1=$((grep -n ":0000:0000" $netcfg) | cut -d\: -f1 | head -n 1)
+					linenumber2=$(( $linenumber1+$netconfcount ))
+					echo -e "$linenumber1"
+					echo -e "$linenumber2"
+					dipv6=$(sed -n "$linenumber1"p $netcfg)
+					spaces=$(echo -e "$dipv6" | tr -cd ' \t' | wc -c)
+					spaces=$(( $spaces-2 ))
+					ipv6test="$(echo $dipv6 | grep -E '.{0,4}\/64')"
+					ipv6test2="$(echo $ipv6test | awk 'match($0,"/64"){print substr($0,RSTART-4,4)}')"
+					ipv6test3=$(( $ipv6test2 + $netconfcount + 50 ))
+					echo -e "ipv6test $ipv6test"
+					echo -e "ipv6test2 $ipv6test2"
+					echo -e "ipv6test3 $ipv6test3"
+					echo -e " 2 $dipv6"
+					echo -e " 3 $spaces"
+					echo -e "$netconfcount"
+					cipv6=$(( $ipv6test3 ))
+					echo -e "$cipv6"
+					ipv6="$(echo $dipv6 | sed "s/$ipv6test2/$cipv6/g")"
+					echo -e "New IPv6 is $ipv6"
+					test="$(echo -e "$(pad " " $spaces) ${ipv6}")"
+					echo -e "$test"
+					sed -i "${linenumber2}i\\${test}" $netcfg
 
 
 #			sed -i '1{/^$/d}' $netcfg
@@ -315,17 +367,20 @@ echo -e "$netcfg"
 #			#Add IPv6 address to netcfg file
 #			sed -i "/gateway6/i \ \ \ \ \ \ \ \ ${ipv6}" $netcfg
 
-			netplan apply
+					netplan apply
 
-			#tidy IP input for conf
-			ipv6conf="$(echo $ipv6 | sed 's/.\{3\}$//')"
-			ipv6conf="$(echo $ipv6conf | sed "s/- //g")"
+					#tidy IP input for conf
+					ipv6conf="$(echo $ipv6 | sed 's/.\{3\}$//')"
+					ipv6conf="$(echo $ipv6conf | sed "s/- //g")"
+				else
+					#check ip set IP/bind variable
+					echo -e "Finding IPv4 address"
+					ipadd=$(curl http://ifconfig.me/ip)
+					echo -e "Your IPv4 is $ipadd"
+					echo -e "Auto IPv4 set"
+			fi
 		else
-			#check ip set IP/bind variable
-			echo -e "Finding IPv4 address"
-			ipadd=$(curl http://ifconfig.me/ip)
-			echo -e "Your IPv4 is $ipadd"
-			echo -e "Auto IPv4 set"
+			ipadd=$bypassipv6addr
 	fi
 
 	echo -e ""
@@ -362,22 +417,8 @@ EOF
 	echo -e ""
 
 	#Sleep/Delay check and install
-	cd /usr/local/bin
-	sleepnumberfile=/usr/local/bin/sleepnumberfile
-	if test -e "$sleepnumberfile"
-		then
-			echo -e "${CYAN}Sleep/delay file exists, not creating${NC}"
-			echo -e ""
-		else
-			echo -e "${CYAN}Installing sleep/delay file${NC}"
-			cd /usr/local/bin
-			echo -e "#!/bin/bash" >> $sleepnumberfile
-			echo -e "MINWAIT=10" >> $sleepnumberfile
-			echo -e "MAXWAIT=310" >> $sleepnumberfile
-			echo -e "sleep $((MINWAIT+RANDOM%(MAXWAIT-MINWAIT)))" >> $sleepnumberfile
-			chmod +x $sleepnumberfile
-	fi
-
+	sleeprandomfilecheck
+	
 	#Node binaries check and install if needed
 	cd /usr/local/bin
 	binfile=/usr/local/bin/${coinnamecli}
@@ -423,7 +464,7 @@ EOF
 	echo -e "Restart=always" >> $alias.service
 	echo -e "PrivateTmp=true" >> $alias.service
 	echo -e "TimeoutStopSec=6000s" >> $alias.service
-	echo -e "TimeoutStartSec=300s" >> $alias.service
+	echo -e "TimeoutStartSec=3000s" >> $alias.service
 	echo -e "StartLimitInterval=120s" >> $alias.service
 	echo -e "StartLimitBurst=5" >> $alias.service
 	echo -e "" >> $alias.service
@@ -483,7 +524,10 @@ EOF
 	#IPv6 check and edit
 	if [[ $ipchoice == yes ]]
 		then
-			ipadd=$ipv6conf
+			if [[ $bypassipv6setup != yes ]] 
+				then
+					ipadd=$ipv6conf
+			fi
 			echo -e "bind=[$ipadd]" >> $coinname.conf
 			echo -e "externalip=[$ipadd]:$port" >> $coinname.conf
 		else
@@ -508,7 +552,7 @@ EOF
 	echo -e ""
 	echo -e "${YELLOW}Starting Node${NC}"
 	
-	systemctl start $alias
+	systemctl start --no-block $alias
 
 	echo -e ""
 	echo -e "${YELLOW}Please wait a moment and then read the following information${NC}"
@@ -539,7 +583,6 @@ EOF
 
 }
 
-
 function ipv6_setup() {
 
 	#Enable IPv6
@@ -559,6 +602,8 @@ function ipv6_setup() {
 			echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 			read autoconfigchoice
 			
+			checkyesno $autoconfigchoice
+			
 			if [[ $autoconfigchoice == yes ]]
 				then
 					mv $netcfg $netcfg2
@@ -575,52 +620,17 @@ function ipv6_setup() {
 					exit
 			fi
 	fi
-	
-	netdone=0
-	netcfg=/etc/netplan/01-netcfg.yaml
 
-	if [[ $netdone == 0 ]] 
-		then
-			if [[ -f $netcfg ]] 
-				then
-					netdone=1
-				else
-					netcfg=/etc/netplan/00-installer-config.yaml
-					netdone=0
-			fi
-	fi
+	checkipv6file
 
-echo -e "$netdone"
-echo -e "$netcfg"
-
-	if [[ $netdone == 0 ]] 
-		then
-			if [[ -f $netcfg ]]
-				then
-					netcfg=/etc/netplan/00-installer-config.yaml
-					netdone=1
-				else
-					netdone=0
-			fi
-	fi
-
-echo -e "$netdone"
-echo -e "$netcfg"
-
-	if [[ $netdone == 0 ]]
-		then
-			echo -e "${MAGENTA}Error - network config file not found (01-netcfg.yaml or 00-installer-config.yaml)${NC}"
-			exit
-	fi
-	
 	echo 0 > /proc/sys/net/ipv6/conf/all/disable_ipv6
-	
+
 	if [[ $filefixed == 0 ]]
 		then
 			sed -i "s/#//" $netcfg
 			sed -i '1{/^$/d}' $netcfg
 	fi
-	
+
 	netplan generate
 	netplan apply
 	sleep 5
@@ -701,7 +711,7 @@ function offlinechainfilebuild() {
 		echo -e ""
 		echo -e "${YELLOW}Starting ${CYAN}$alias${NC}"
 		
-		systemctl start $alias.service
+		systemctl start --no-block $alias.service
 		
 		return
 }
@@ -797,7 +807,7 @@ case $start in
 			if [[ $i == *scc* ]]
 				then
 					echo -e "${YELLOW}Restarting ${CYAN}$i${YELLOW}..${NC}"
-					systemctl restart $i
+					systemctl restart --no-block $i
 					echo -e "${CYAN}$i${YELLOW} updated and restarted${NC}"
 					echo -e ""
 					echo -e "${YELLOW}Pausing for 2 minutes to let ${CYAN}$i${YELLOW} settle${NC}"
@@ -849,7 +859,7 @@ case $start in
 
 	7)	echo -e "${YELLOW}Starting $ticker MasterNode install${NC}"
 
-		install_mn
+		install_mn "no"
 
 		exit
 
@@ -873,7 +883,7 @@ case $start in
 						if [[ $i == *scc* ]]
 							then
 								echo -e "${MAGENTA}${stopstart}ing ${CYAN}$i${MAGENTA}..${NC}"
-								systemctl $stopstart $i
+								systemctl $stopstart --no-block $i
 								if [[ $stopstart == "stop" ]]
 									then
 										echo -e "${YELLOW}Pausing for 10 seconds${NC}"
@@ -924,7 +934,7 @@ case $start in
 
 		echo -e "${RED}Chain files are deleted, restarting node ${CYAN}$alias${NC}"
 
-		systemctl start $alias.service
+		systemctl start --no-block $alias.service
 
 		exit
 
@@ -1534,22 +1544,8 @@ case $start in
 
 		17)	echo -e "${YELLOW}Beginning Sleep delay install/update tool${NC}"
 
-			cd /etc/systemd/system
-			sleepnumberfile=/usr/local/bin/sleeprandom
-			if test -e "$sleepnumberfile"
-				then
-					echo -e "${CYAN}Sleep/delay file exists, not creating${NC}"
-					echo -e ""
-				else
-					echo -e "${CYAN}Installing sleep/delay file${NC}"
-					cd /usr/local/bin
-					echo -e "#!/bin/bash" >> $sleepnumberfile
-					echo -e "MINWAIT=10" >> $sleepnumberfile
-					echo -e "MAXWAIT=310" >> $sleepnumberfile
-					echo -e 'sleep $((MINWAIT+RANDOM%(MAXWAIT-MINWAIT)))' >> $sleepnumberfile
-					chmod +x $sleepnumberfile
-			fi
-
+			sleeprandomfilecheck
+			
 			echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} MN service files${NC}"
 
 			foundone=0
@@ -1573,6 +1569,7 @@ case $start in
 									echo -e "${CYAN}$i already updated${NC}"
 								else
 									sed -i '/^ExecStart=.*/i ExecStartPre=/usr/local/bin/sleeprandom' /etc/systemd/system/$i
+									sed -i 's/TimeoutStartSec=.*/TimeoutStartSec=3000s/g' /etc/systemd/system/$i
 									echo -e "${CYAN}Updated ${MAGENTA}$i${NC}"
 									echo -e ""
 									echo -e "${YELLOW}Reloading system config daemon files${NC}"
@@ -1590,5 +1587,28 @@ case $start in
 			exit
 
 		;;
+
+		18) echo -e "${YELLOW}Beginning manual ip node install${NC}"
+
+			echo -e ""
+			echo -e "${YELLOW}Please specify a valid IPv6 address${NC}"
+			read manualipv6addr
+			
+			echo -e ""
+			echo -e "${MAGENTA}Testing ipv6 address${NC}"
+
+			testipv6=$(ping google.com -c 5 -W 2 -I $manualipv6addr)
+			testipv6status=$?
+
+			if [[ $testipv6status == 0 ]]
+				then
+					install_mn "yes" "$manualipv6addr"
+				else
+					echo -e "${RED}Error: ${CYAN}IP is invalid${NC}"
+			fi
+			
+			exit
+			
+	;;
 
     esac
