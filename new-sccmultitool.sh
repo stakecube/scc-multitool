@@ -1644,7 +1644,7 @@ case $start in
 
 			foundone=0
 
-			for i in $(ls /etc/systemd/system/)
+			for i in $(ls /home/)
 				do
 					if [[ $i == *scc* ]]
 						then
