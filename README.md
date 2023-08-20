@@ -1,5 +1,7 @@
-SCC Multi Tool script tested on Linux 18.04
-(Automatic IPv6 configuration is valid only for U18 contabo servers)
+SCC Multi Tool script tested on Linux 18.04 - 22.04
+(Automatic IPv6 configuration is valid only for Contabo servers)
+
+
 
 SCC MN install guide
 
@@ -8,6 +10,9 @@ https://stakecube.info/stakecubecoin-dip3-masternode-setup-quick-guide/
 
 Full guide
 https://stakecube.info/stakecubecoin-dip3-masternode-setup-full-guide/
+
+
+
 
 
 Commands to install sccmultitool.sh
@@ -19,12 +24,19 @@ chmod +x new-sccmultitool.sh
 ./new-sccmultitool.sh
 
 
+
+
 New server note
 New server and IPv6 setup only needs to be set up once per server.
 
 
+
+
 MultiNode note
 To run multiple MN's on one server you will need to use the IPv6 option when promted in option 6 enter a unique Alias, BLS secret key, and rpc port each time you run masternode install tool.
+
+
+
 
 
 Masternode install note
