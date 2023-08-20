@@ -12,11 +12,11 @@ https://stakecube.info/stakecubecoin-dip3-masternode-setup-full-guide/
 
 Commands to install sccmultitool.sh
 
-wget https://raw.githubusercontent.com/stakecube/SCC-multitool/master/sccmultitool.sh
+wget https://raw.githubusercontent.com/grigzy28/SCC-multitool/master/new-sccmultitool.sh
 
-chmod +x sccmultitool.sh
+chmod +x new-sccmultitool.sh
 
-./sccmultitool.sh
+./new-sccmultitool.sh
 
 
 New server note
@@ -40,17 +40,3 @@ note this info and enter carefully
 Port = Default port is 40000 and is set for you
 
 RPCport = Default RPCport is 39999 use unique for multinode
-
-
-Check.sh instructions (This will be replaced with the health check and repair tool soon)
-
-Updated check.sh file for new commands if you are using an older version of this script
-wget https://github.com/stakecube/SCC-multitool/blob/master/check.sh
-
-chmod +x check.sh
-
-The new server option will also add a file in root named check.sh
-edit this file using 
-nano check.sh
-add node alias to "node="
-example "node1=alias"
