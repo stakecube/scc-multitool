@@ -74,6 +74,7 @@ echo -e "${YELLOW}15 - Check block count and optional chain repair (all ${ticker
 echo -e "${YELLOW}16 - Check status of disk space and memory usage"
 echo -e "${YELLOW}17 - Check and install/update service files for sleep delay"
 echo -e "${YELLOW}18 - Install New Node with manually specified IPv6 Address"
+echo -e "${YELLOW}19 - Check for updated script from GitHub${NC}"
 echo -e ""
 echo -e "${YELLOW}0  - Exit"
 echo -e ""
@@ -326,8 +327,8 @@ function install_mn() {
 					checkipv6file
 
 					sed -i '1{/^$/d}' $netcfg
-					netconfcount=$(grep -c :0000:0000 $netcfg)
-					linenumber1=$((grep -n ":0000:0000" $netcfg) | cut -d\: -f1 | head -n 1)
+					netconfcount=$(grep -c "/64" $netcfg)
+					linenumber1=$((grep -n "/64" $netcfg) | cut -d\: -f1 | head -n 1)
 					linenumber2=$(( $linenumber1+$netconfcount ))
 					echo -e "$linenumber1"
 					echo -e "$linenumber2"
@@ -1611,4 +1612,32 @@ case $start in
 			
 	;;
 
+		19)	echo -e "${MAGENTA}Beginning Update Checker Tool${NC}"
+
+			echo -e ""
+			
+			sccmultitool_update=$(curl -s https://raw.githubusercontent.com/grigzy28/SCC-Multitool/new-sccmultitool.sh)
+
+			if [[ -f ~/new-sccmultitool.sh && ! $(diff -q <(echo "$sccmultitool_update") ~/new-sccmultitool.sh) ]]
+				then
+					echo -e "${GREEN}New-SCCMultitool${NC} is already updated to the lastest version"
+				else
+					update=$([[ -f ~/new-sccmultitool.sh ]] && echo "1" || echo "0")
+
+					echo "$dupmn_update" > ~/new-sccmultitool.sh
+					chmod +x ~/new-sccmultitool.sh
+
+					if [[ $update == "1" ]]
+						then
+							echo -e "${GREEN}New-SCCMultitool${NC} updated to the last version"
+						else
+							echo -e "${GREEN}dupmn${NC} installed"
+					fi
+			fi
+
+			exit
+
+	;;
+ 
+ 
     esac
