@@ -1588,7 +1588,6 @@ case $start in
 			exit
 
 		;;
-
 		18) echo -e "${YELLOW}Beginning manual ip node install${NC}"
 
 			echo -e ""
@@ -1638,6 +1637,36 @@ case $start in
 			exit
 
 	;;
- 
- 
-    esac
+
+		20)	echo -e "${YELLOW}Pringing Private Keys for all nodes${NC}"
+
+			echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} MN private keys${NC}"
+
+			foundone=0
+
+			for i in $(ls /etc/systemd/system/)
+				do
+					if [[ $i == *scc* ]]
+						then
+
+							foundone=1
+
+							privkey=$(grep -e 'masternodeblsprivkey' /home/$i/.scc/stakecubecoin.conf)
+							grepcheckstatus=$?
+
+							echo -e "${YELLOW}found ${CYAN}$i${YELLOW}...${NC}"
+							echo -e ""
+							echo -e "${CYAN}Private Key:${YELLOW}$privkey${NC}"
+					fi
+				done
+
+			if [[ $foundone == 0 ]]
+				then
+					echo -e "${CYAN}Found no SCC node files${NC}"
+			fi
+
+			exit
+
+		;;
+
+		esac
