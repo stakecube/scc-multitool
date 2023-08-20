@@ -1631,7 +1631,7 @@ case $start in
 						then
 							echo -e "${GREEN}New-SCCMultitool${NC} updated to the last version"
 						else
-							echo -e "${GREEN}dupmn${NC} installed"
+							echo -e "${GREEN}new-sccmultitool${NC} installed"
 					fi
 			fi
 
