@@ -1624,7 +1624,7 @@ case $start in
 				else
 					update=$([[ -f ~/new-sccmultitool.sh ]] && echo "1" || echo "0")
 
-					echo "$dupmn_update" > ~/new-sccmultitool.sh
+					echo "$sccmultitool_update" > ~/new-sccmultitool.sh
 					chmod +x ~/new-sccmultitool.sh
 
 					if [[ $update == "1" ]]
