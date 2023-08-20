@@ -1615,7 +1615,7 @@ case $start in
 
 			echo -e ""
 			
-			sccmultitool_update=$(curl -s https://raw.githubusercontent.com/grigzy28/SCC-Multitool/master/new-sccmultitool.sh)
+			sccmultitool_update=$(curl https://raw.githubusercontent.com/grigzy28/SCC-Multitool/master/new-sccmultitool.sh)
 
 			if [[ -f ~/new-sccmultitool.sh && ! $(diff -q <(echo "$sccmultitool_update") ~/new-sccmultitool.sh) ]]
 				then
