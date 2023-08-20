@@ -75,6 +75,7 @@ echo -e "${YELLOW}16 - Check status of disk space and memory usage"
 echo -e "${YELLOW}17 - Check and install/update service files for sleep delay"
 echo -e "${YELLOW}18 - Install New Node with manually specified IPv6 Address"
 echo -e "${YELLOW}19 - Check for updated script from GitHub${NC}"
+echo -e "${YELLOW}20 - Output all nodes Private Keys${NC}"
 echo -e ""
 echo -e "${YELLOW}0  - Exit"
 echo -e ""
@@ -1615,7 +1616,7 @@ case $start in
 
 			echo -e ""
 			
-			sccmultitool_update=$(curl https://raw.githubusercontent.com/grigzy28/SCC-Multitool/master/new-sccmultitool.sh)
+			sccmultitool_update=$(curl -s https://raw.githubusercontent.com/grigzy28/SCC-Multitool/master/new-sccmultitool.sh)
 
 			if [[ -f ~/new-sccmultitool.sh && ! $(diff -q <(echo "$sccmultitool_update") ~/new-sccmultitool.sh) ]]
 				then
@@ -1651,12 +1652,12 @@ case $start in
 
 							foundone=1
 
-							privkey=$(grep -e 'masternodeblsprivkey' /home/$i/.scc/stakecubecoin.conf)
+							privkey=$(grep -e 'masternodeblsprivkey' /home/$i/.scc/stakecubecoin.conf | cut -d\= -f2)
 							grepcheckstatus=$?
 
 							echo -e "${YELLOW}found ${CYAN}$i${YELLOW}...${NC}"
 							echo -e ""
-							echo -e "${CYAN}Private Key:${YELLOW}$privkey${NC}"
+							echo -e "${CYAN}Private Key:${MAGENTA}$privkey${NC}"
 					fi
 				done
 
