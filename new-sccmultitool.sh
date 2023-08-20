@@ -1656,8 +1656,8 @@ case $start in
 							grepcheckstatus=$?
 
 							echo -e "${YELLOW}found ${CYAN}$i${YELLOW}...${NC}"
-							echo -e ""
 							echo -e "${CYAN}Private Key:${MAGENTA}$privkey${NC}"
+							echo -e ""
 					fi
 				done
 
