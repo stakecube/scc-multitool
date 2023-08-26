@@ -14,10 +14,11 @@ https://stakecube.info/stakecubecoin-dip3-masternode-setup-full-guide/
 
 -----------------------------------------------------------------------------------------------
 
-
 Commands to install sccmultitool.sh
 
-wget https://raw.githubusercontent.com/grigzy28/SCC-multitool/master/new-sccmultitool.sh
+```
+curl -sL https://raw.githubusercontent.com/grigzy28/SCC-multitool/master/new-sccmultitool.sh
+```
 
 chmod +x new-sccmultitool.sh
 
