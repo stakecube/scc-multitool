@@ -211,7 +211,18 @@ function chain_repair() {
 
 	echo -e ""
 	echo -e "Stopping ${MAGENTA}$alias${NC}"
-	systemctl stop $alias
+	aliasvalid=$(systemctl stop $alias)
+	aliasvalidstatus=$?
+	
+	if [[ $aliasvalidstatus != 0 ]]
+		then
+			echo -e ""
+			echo -e "${RED}Error: ${CYAN}$alias ${MAGENTA} does not exist or has other error${NC}"
+			echo -e ""
+			
+			exit
+	fi
+	
 	sleep 10
 
 
@@ -231,7 +242,7 @@ function chain_repair() {
 	find /home/$alias/.${coindir}/ -name ".lock" -delete
 	find /home/$alias/.${coindir}/ -name ".walletlock" -delete
 	find /home/$alias/.${coindir}/* ! -name "wallet.dat" ! -name "*.conf" -delete
-	echo -e "${YELLOW}Downloading/Copying and replacing chain files for ${MAGENTA}$alias${NC}"
+	echo -e "${YELLOW}Downloading and/or Unzipping and replacing chain files for ${MAGENTA}$alias${NC}"
 
 	if [[ $bootstrapchoice == yes ]]
 		then
@@ -260,11 +271,12 @@ function chain_repair() {
 			rm /home/${alias}/${coinname}.zip
 	fi
 
-	chown -R $alias /home/${alias}
+	chown -R $alias:$alias /home/${alias}
 	echo -e "${CYAN}Starting $alias after repair${NC}"
+	echo -e ""
 	systemctl start --no-block ${alias}.service
 	sleep 10
-	echo -e ""
+
 	echo -e "${YELLOW}Please wait for a moment.. and use ${CYAN}$alias masternode status${YELLOW} to check if $alais is ready for POSE unban or still showing READY${NC}"
 	echo -e "${YELLOW}If $alias showing POSE banned you will need to run the protx update command to unban${NC}"
 	echo -e "${YELLOW}Below is an example of the protx update command to use in your main wallets debug console${NC}"
@@ -511,7 +523,7 @@ EOF
 	echo -e ""
 	
 	mkdir /home/$alias/.${coindir}
-	chown '$alias:$alias' /home/$alias/.${coindir}
+	chown $alias:$alias /home/$alias/.${coindir}
 	
 	if [[ $bootstrapchoice == yes ]] && [[ $chaindownload == 0 ]]
 		then
