@@ -310,6 +310,16 @@ function install_mn() {
 	echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
 	echo -e "${YELLOW}To use other tools you must include ${CYAN}$ticker${YELLOW} in the alias${NC}"
 	read alias
+	
+	if [[ -f /home/$alias/.${coindir}/${coinname}.conf ]]
+		then
+			echo -e ""
+			echo -e "${RED}Error duplicate node name${NC}"
+			echo -e ""
+			
+			exit
+	fi
+
 	echo -e ""
 	echo -e "${YELLOW}${UNDERLINE}Enter the BLS secret key${NC}"
 	read key
