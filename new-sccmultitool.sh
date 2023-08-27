@@ -316,9 +316,10 @@ function install_mn() {
 
 			checkyesno $ipchoice
 
-			echo -e "Passed yes/no check"
+#			echo -e "Passed yes/no check"
 
 			#script network config dependency
+			echo -e ""
 			echo -e "Checking/installing dependency for auto IP setup"
 
 			if [[ $ipchoice == yes ]]
@@ -331,27 +332,27 @@ function install_mn() {
 					netconfcount=$(grep -c "/64" $netcfg)
 					linenumber1=$((grep -n "/64" $netcfg) | cut -d\: -f1 | head -n 1)
 					linenumber2=$(( $linenumber1+$netconfcount ))
-					echo -e "$linenumber1"
-					echo -e "$linenumber2"
+#					echo -e "$linenumber1"
+#					echo -e "$linenumber2"
 					dipv6=$(sed -n "$linenumber1"p $netcfg)
 					spaces=$(echo -e "$dipv6" | tr -cd ' \t' | wc -c)
 					spaces=$(( $spaces-2 ))
 					ipv6test="$(echo $dipv6 | grep -E '.{0,4}\/64')"
 					ipv6test2="$(echo $ipv6test | awk 'match($0,"/64"){print substr($0,RSTART-4,4)}')"
 					ipv6test3=$(( $ipv6test2 + $netconfcount + 50 ))
-					echo -e "ipv6test $ipv6test"
-					echo -e "ipv6test2 $ipv6test2"
-					echo -e "ipv6test3 $ipv6test3"
-					echo -e " 2 $dipv6"
-					echo -e " 3 $spaces"
-					echo -e "$netconfcount"
+#					echo -e "ipv6test $ipv6test"
+#					echo -e "ipv6test2 $ipv6test2"
+#					echo -e "ipv6test3 $ipv6test3"
+#					echo -e " 2 $dipv6"
+#					echo -e " 3 $spaces"
+#					echo -e "$netconfcount"
 					cipv6=$(( $ipv6test3 ))
-					echo -e "$cipv6"
+#					echo -e "$cipv6"
 					ipv6="$(echo $dipv6 | sed "s/$ipv6test2/$cipv6/g")"
 					echo -e "New IPv6 is $ipv6"
 					test="$(echo -e "$(pad " " $spaces) ${ipv6}")"
 					echo -e "$test"
-					sed -i "${linenumber2}i\\${test}" $netcfg
+#					sed -i "${linenumber2}i\\${test}" $netcfg
 
 
 #			sed -i '1{/^$/d}' $netcfg
@@ -369,7 +370,7 @@ function install_mn() {
 #			#Add IPv6 address to netcfg file
 #			sed -i "/gateway6/i \ \ \ \ \ \ \ \ ${ipv6}" $netcfg
 
-					netplan apply
+#					netplan apply
 
 					#tidy IP input for conf
 					ipv6conf="$(echo $ipv6 | sed 's/.\{3\}$//')"
@@ -385,12 +386,23 @@ function install_mn() {
 			ipadd=$bypassipv6addr
 	fi
 
+
 	echo -e ""
 	echo -e "${YELLOW}Use offline bootstrap?${NC}"
 	echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 	read bootstrapchoice
 
 	checkyesno $bootstrapchoice
+	
+	if [[ $ipchoice == yes ]]
+		then
+			echo -e ""
+			echo -e "${CYAN}Applying IP configuration${NC}"
+
+			sed -i "${linenumber2}i\\${test}" $netcfg
+
+			netplan apply
+	fi
 	
 	echo -e ""
 	ufw allow ssh
