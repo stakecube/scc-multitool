@@ -6,7 +6,7 @@ Options labeled Contabo ONLY will not work with standard Ubuntu installs
 
 Auto IPV6 should function with standard Ubuntu Server installs without modification
 
-IS NOT designed for Desktop GUI Ubuntu installs (Will not most likely work correctly)
+Is NOT designed for Desktop GUI Ubuntu installs (Will not most likely work correctly or at all)
 
 -----------------------------------------------------------------------------------------------
 
@@ -24,13 +24,18 @@ https://stakecube.info/stakecubecoin-dip3-masternode-setup-full-guide/
 Commands to install sccmultitool.sh
 
 ```
-wget https://raw.githubusercontent.com/grigzy28/SCC-multitool/master/new-sccmultitool.sh | chmod +x -
+wget https://raw.githubusercontent.com/grigzy28/SCC-multitool/master/new-sccmultitool.sh
 ```
 
+```
 chmod +x new-sccmultitool.sh
+```
 
+To execute type:
+
+```
 ./new-sccmultitool.sh
-
+```
 
 -----------------------------------------------------------------------------------------------
 
