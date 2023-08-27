@@ -353,7 +353,7 @@ function install_mn() {
 					ipv6="$(echo $dipv6 | sed "s/$ipv6test2/$cipv6/g")"
 					echo -e "New IPv6 is $ipv6"
 					test="$(echo -e "$(pad " " $spaces) ${ipv6}")"
-					echo -e "$test"
+#					echo -e "$test"
 #					sed -i "${linenumber2}i\\${test}" $netcfg
 
 
@@ -395,7 +395,7 @@ function install_mn() {
 	read bootstrapchoice
 
 	checkyesno $bootstrapchoice
-	
+
 	if [[ $ipchoice == yes ]]
 		then
 			echo -e ""
@@ -405,7 +405,7 @@ function install_mn() {
 
 			netplan apply
 	fi
-	
+
 	echo -e ""
 	ufw allow ssh
 
@@ -1633,6 +1633,8 @@ case $start in
 			
 			sccmultitool_update=$(curl https://raw.githubusercontent.com/grigzy28/SCC-Multitool/master/new-sccmultitool.sh)
 
+			echo -e ""
+			
 			if [[ -f ~/new-sccmultitool.sh && ! $(diff -q <(echo "$sccmultitool_update") ~/new-sccmultitool.sh) ]]
 				then
 					echo -e "${GREEN}New-SCCMultitool${NC} is already updated to the lastest version"
@@ -1644,7 +1646,7 @@ case $start in
 
 					if [[ $update == "1" ]]
 						then
-							echo -e "${GREEN}New-SCCMultitool${NC} updated to the last version"
+							echo -e "${GREEN}New-SCCMultitool${NC} updated to the lastest version"
 						else
 							echo -e "${GREEN}new-sccmultitool${NC} installed"
 					fi
