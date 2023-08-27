@@ -115,10 +115,10 @@ function checkyesno() {
 		then
 			return
 		else
-			echo -e "${YELLOW}Please enter only${CYAN} yes/y${YELLOW} or${CYAN} no/n${NC}"
+			echo -e "${YELLOW}Please enter only${CYAN} yes${YELLOW} or${CYAN} no${NC}"
 			echo -e ""
 			echo -e "${RED}Aborting script${NC}"
-
+			echo -e ""
 			exit
 
 	fi
@@ -695,7 +695,8 @@ function setup_swap() {
 				echo -e "${YELLOW}Swapfile new size = ${GREEN}$1 MB${NC}"
         fi
 
-        echo -e "Use ${YELLOW}swapon -s${NC} to see the changes of your swapfile and ${YELLOW}free -m${NC} to see the total available memory"
+        echo -e ""
+		echo -e "Use ${YELLOW}swapon -s${NC} to see the changes of your swapfile and ${YELLOW}free -m${NC} to see the total available memory"
 }
 
 
