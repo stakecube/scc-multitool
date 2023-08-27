@@ -351,6 +351,7 @@ function install_mn() {
 					cipv6=$(( $ipv6test3 ))
 #					echo -e "$cipv6"
 					ipv6="$(echo $dipv6 | sed "s/$ipv6test2/$cipv6/g")"
+					echo -e ""
 					echo -e "New IPv6 is $ipv6"
 					test="$(echo -e "$(pad " " $spaces) ${ipv6}")"
 #					echo -e "$test"
@@ -395,6 +396,18 @@ function install_mn() {
 	read bootstrapchoice
 
 	checkyesno $bootstrapchoice
+
+	if [[ $bootstrapchoice == no ]]
+		then
+			echo -e ""
+			echo -e "${YELLOW}Do you wish to download from the web (${CYAN}yes${YELLOW}) or full chain downlaod (${CYAN}no${YELLOW})${NC}"
+			echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+			read chaindownload
+			
+			checkyesno $chaindownload
+		else
+			chaindownload=0
+	fi
 
 	if [[ $ipchoice == yes ]]
 		then
@@ -490,22 +503,22 @@ EOF
 	echo -e "${CYAN}System service setup and enabled${NC}"
 
 
-	#update/copy chain files or get snapshot# from web
+	#update/copy chain files or get snapshot# from web or fresh complete chain download
 	echo -e ""
 	cd /home/$alias
 	find /home/$alias/.${coindir}/* ! -name "wallet.dat" ! -name "*.conf" -delete
 	echo -e "${YELLOW}Downloading/Copying and installing chain files for ${MAGENTA}$alias${NC}"
 
-	if [[ $bootstrapchoice == yes ]]
+	if [[ $bootstrapchoice == yes ]] && [[ $chaindownload == 0 ]]
 		then
 			sccfile=~/${coinname}.zip
 			if test -e "$sccfile"
 				then
-					#rsync -adm --info=progress2 /root/${coinname}.zip /home/$alias
+#					rsync -adm --info=progress2 /root/${coinname}.zip /home/$alias
 					7zz x ~/${coinname}.zip
 					echo -e "${YELLOW}$coinname local bootstrap directory updated${NC}"
-					echo -e "${YELLOW}Removing copied temp file${NC}"
-					#rm /home/${alias}/${coinname}.zip
+#					echo -e "${YELLOW}Removing copied temp file${NC}"
+#					rm /home/${alias}/${coinname}.zip
 				else
 					echo -e "${RED}File doesn't exist${NC}, ${YELLOW}downloading chain${NC}"
 					wget -nv --show-progress ${snapshot} -O ${coinname}.zip
@@ -515,12 +528,17 @@ EOF
 					rm /home/${alias}/${coinname}.zip
 			fi
 		else
-			wget -nv --show-progress ${snapshot} -O ${coinname}.zip
-			7zz x ${coinname}.zip
-			echo -e "${YELLOW}$coinname chain directory setup${NC}"
-			echo -e "${YELLOW}Removing downloaded temp file${NC}"
-			rm /home/${alias}/${coinname}.zip
+			if [[ $chaindownload == yes ]]
+				then
+					wget -nv --show-progress ${snapshot} -O ${coinname}.zip
+					7zz x ${coinname}.zip
+					echo -e "${YELLOW}$coinname chain directory setup${NC}"
+					echo -e "${YELLOW}Removing downloaded temp file${NC}"
+					rm /home/${alias}/${coinname}.zip
+			fi
 	fi
+
+	echo -e ""
 
 	#make conf file
 	echo -e ""
