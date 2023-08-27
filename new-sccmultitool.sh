@@ -507,8 +507,12 @@ EOF
 	echo -e ""
 	cd /home/$alias
 	find /home/$alias/.${coindir}/* ! -name "wallet.dat" ! -name "*.conf" -delete
-	echo -e "${YELLOW}Downloading/Copying and installing chain files for ${MAGENTA}$alias${NC}"
-
+	echo -e "${YELLOW}Downloading ano/or Unzipping chain files for ${MAGENTA}$alias${NC}"
+	echo -e ""
+	
+	mkdir /home/$alias/.${coindir}
+	chown '$alias:$alias' /home/$alias/.${coindir}
+	
 	if [[ $bootstrapchoice == yes ]] && [[ $chaindownload == 0 ]]
 		then
 			sccfile=~/${coinname}.zip
