@@ -1,7 +1,14 @@
-SCC Multi Tool script tested on Linux 18.04 - 22.04
-(Automatic IPv6 configuration is valid only for Contabo servers)
+New Revised SCC Multi Tool script
 
+Tested on Ubuntu Linux 18.04 thru 22.04 LTS server versions
 
+Options labeled Contabo ONLY will not work with standard Ubuntu installs
+
+Auto IPV6 should function with standard Ubuntu Server installs without modification
+
+IS NOT designed for Desktop GUI Ubuntu installs (Will not most likely work correctly)
+
+-----------------------------------------------------------------------------------------------
 
 SCC MN install guide
 
@@ -17,7 +24,7 @@ https://stakecube.info/stakecubecoin-dip3-masternode-setup-full-guide/
 Commands to install sccmultitool.sh
 
 ```
-wget https://raw.githubusercontent.com/grigzy28/SCC-multitool/master/new-sccmultitool.sh
+wget https://raw.githubusercontent.com/grigzy28/SCC-multitool/master/new-sccmultitool.sh | chmod +x -
 ```
 
 chmod +x new-sccmultitool.sh
@@ -28,28 +35,25 @@ chmod +x new-sccmultitool.sh
 -----------------------------------------------------------------------------------------------
 
 
-New server note
+New server note:
+
 New server and IPv6 setup only needs to be set up once per server.
 
 -----------------------------------------------------------------------------------------------
 
 
-MultiNode note
-To run multiple MN's on one server you will need to use the IPv6 option when promted in option 6 enter a unique Alias, BLS secret key, and rpc port each time you run masternode install tool.
+MultiNode note:
+
+To run multiple MN's on one server you will need to use the IPv6 option when promted in option 7 enter a unique Alias, BLS secret key, and rpc port each time you run the masternode install tool.
 
 -----------------------------------------------------------------------------------------------
 
 
-Masternode install note
+Masternode install notes:
 
 Alias = Name of your MN, Must all be in lower case with no spaces or special characters and also include "scc" in the name for multi tools
+secret key= get this from your control wallets console using the command `bls generate`
 
-secret key= get this from your control wallets console using the command
+`Please note this info and enter carefully also make sure to keep a copy of this information`
 
-bls generate
-
-note this info and enter carefully
-
-Port = Default port is 40000 and is set for you
-
-RPCport = Default RPCport is 39999 use unique for multinode
+RPCport = Default RPCport is 39999, please make sure to use a unique number for each node instance otherwise nodes will not start
