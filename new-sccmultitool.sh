@@ -141,8 +141,8 @@ function checkipv6file() {
 			fi
 	fi
 
-echo -e "$netdone"
-echo -e "$netcfg"
+#echo -e "$netdone"
+#echo -e "$netcfg"
 
 	if [[ $netdone == 0 ]] 
 		then
@@ -155,12 +155,14 @@ echo -e "$netcfg"
 			fi
 	fi
 
-echo -e "$netdone"
-echo -e "$netcfg"
+#echo -e "$netdone"
+#echo -e "$netcfg"
 
 	if [[ $netdone == 0 ]]
 		then
-			echo -e "${MAGENTA}Error - network config file not found (01-netcfg.yaml or 00-installer-config.yaml)${NC}"
+			echo -e ""
+			echo -e "${RED}Error - network config file not found (01-netcfg.yaml or 00-installer-config.yaml)${NC}"
+			echo -e ""
 			exit
 	fi
 
