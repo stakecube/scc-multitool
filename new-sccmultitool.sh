@@ -1717,7 +1717,7 @@ case $start in
 
 			echo -e ""
 			
-			if [[ ! $(cmp <(echo "$sccmultitool_update") ~/new-sccmultitool.sh) ]] || [[ ! $(diff <(echo "$sccmultitool_update") ~/new-sccmultitool.sh) ]]
+			if [[ $(cmp <(echo "$sccmultitool_update") ~/new-sccmultitool.sh) ]] && [[ $(diff <(echo "$sccmultitool_update") ~/new-sccmultitool.sh) ]]
 				then
 					echo -e "${GREEN}New-SCCMultitool${NC} is already updated to the lastest version"
 					echo -e ""
