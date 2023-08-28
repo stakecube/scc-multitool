@@ -800,7 +800,7 @@ function offlinechainfilebuild() {
 }
 
 function mn_uninstall() {
-
+		
 		echo -e "${YELLOW}Checking home directory for MN alias's${NC}"
 		ls /home
 		echo -e ""
@@ -1780,22 +1780,7 @@ case $start in
 				do
 					if [[ $i == *scc* ]]
 						then
-
-							foundone=1
-
-							echo -e "Checking home directory for masternode alias's"
-							echo -e ""
-							ls /home
-							echo -e ""
-							echo -e "${YELLOW}Above are the alias names for the installed masternodes${NC}"
-							echo -e "${CYAN}Please enter the masternode alias name to remove${NC}"
-							echo -e ""
-							read alias
-
-							checkaliasvalidity $alias
-
-							mn_uninstall $alias
-
+							mn_uninstall
 					fi
 				done
 
