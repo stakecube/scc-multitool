@@ -1717,14 +1717,13 @@ case $start in
 
 			echo -e ""
 			
-			if [[ -f ~/new-sccmultitool.sh && ! $(cmp <(echo "$sccmultitool_update") ~/new-sccmultitool.sh) ]]
+			if [[ ! $(cmp <(echo "$sccmultitool_update") ~/new-sccmultitool.sh) ]] || [[ ! $(diff <(echo "$sccmultitool_update") ~/new-sccmultitool.sh) ]]
 				then
 					echo -e "${GREEN}New-SCCMultitool${NC} is already updated to the lastest version"
 					echo -e ""
 					exit
 				else
 					update=$([[ -f ~/new-sccmultitool.sh ]] && echo "1" || echo "0")
-
 					echo "$sccmultitool_update" > ~/new-sccmultitool.sh
 					chmod +x ~/new-sccmultitool.sh
 
@@ -1797,5 +1796,3 @@ case $start in
 			exit
 
 	;;
-
-		esac
