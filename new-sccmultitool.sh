@@ -1774,7 +1774,7 @@ case $start in
 			echo -e "${YELLOW}Press ${CYAN}Control-C${YELLOW} to abort at alias selection to quit${NC}"
 			echo -e ""
 
-			foundone=1
+			foundone=0
 
 			for i in $(ls /home/)
 				do
