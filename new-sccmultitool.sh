@@ -1791,6 +1791,7 @@ case $start in
 			if [[ $foundone == 0 ]]
 				then
 					echo -e "${CYAN}Found no SCC node nodes${NC}"
+					echo -e ""
 			fi
 
 			exit
