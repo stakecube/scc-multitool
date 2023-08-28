@@ -1720,6 +1720,8 @@ case $start in
 			if [[ -f ~/new-sccmultitool.sh && ! $(cmp <(echo "$sccmultitool_update") ~/new-sccmultitool.sh) ]]
 				then
 					echo -e "${GREEN}New-SCCMultitool${NC} is already updated to the lastest version"
+					echo -e ""
+					exit
 				else
 					update=$([[ -f ~/new-sccmultitool.sh ]] && echo "1" || echo "0")
 
@@ -1732,6 +1734,8 @@ case $start in
 						else
 							echo -e "${GREEN}new-sccmultitool${NC} installed"
 					fi
+
+					echo -e ""
 			fi
 
 			exit
