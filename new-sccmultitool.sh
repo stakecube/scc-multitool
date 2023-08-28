@@ -1717,7 +1717,7 @@ case $start in
 
 			echo -e ""
 			
-			if [[ -f ~/new-sccmultitool.sh && ! $(diff <(echo "$sccmultitool_update") ~/new-sccmultitool.sh) ]]
+			if [[ -f ~/new-sccmultitool.sh && ! $(cmp <(echo "$sccmultitool_update") ~/new-sccmultitool.sh) ]]
 				then
 					echo -e "${GREEN}New-SCCMultitool${NC} is already updated to the lastest version"
 				else
@@ -1742,7 +1742,7 @@ case $start in
 
 			echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} MN private keys${NC}"
 
-			foundone=1
+			foundone=0
 
 			for i in $(ls /home/)
 				do
