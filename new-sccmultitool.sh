@@ -1777,8 +1777,6 @@ case $start in
 			echo -e "${YELLOW}Press ${CYAN}Control-C${YELLOW} to abort at alias selection to quit${NC}"
 			echo -e ""
 
-			foundone=1
-
 			for i in $(ls /home/)
 				do
 					if [[ $i == *scc* ]]
@@ -1787,11 +1785,8 @@ case $start in
 					fi
 				done
 
-			if [[ $foundone == 0 ]]
-				then
-					echo -e "${CYAN}Found no SCC node nodes${NC}"
-					echo -e ""
-			fi
+			echo -e "${CYAN}Found no SCC node nodes${NC}"
+			echo -e ""
 
 			exit
 
