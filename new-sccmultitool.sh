@@ -74,9 +74,10 @@ echo -e "${YELLOW}15 - Check block count and optional chain repair (all ${ticker
 echo -e "${YELLOW}16 - Check status of disk space and memory usage"
 echo -e "${YELLOW}17 - Check and install/update service files for sleep delay"
 echo -e "${YELLOW}18 - Install New Node with manually specified IPv6 Address"
-echo -e "${YELLOW}19 - Check for updated script from GitHub${NC}"
 echo -e "${YELLOW}20 - Output all nodes Private Keys${NC}"
 echo -e "${YELLOW}21 - Remove Multiple Masternodes"
+echo -e ""
+echo -e "${YELLOW}99 - Check for updated script from GitHub${NC}"
 echo -e ""
 echo -e "${YELLOW}0  - Exit"
 echo -e ""
@@ -907,7 +908,7 @@ case $start in
 		cd /usr/local/bin
 		rm $coinnamecli $coinnamed
 		wget -nv --show-progress ${binaries} -O ${coinname}.zip
-		7zz x -o ${coinname}.zip
+		7zz x ${coinname}.zip
 		chmod +x ${coinnamecli} ${coinnamed}
 		rm ${coinname}.zip
 		cd /root
@@ -1709,38 +1710,6 @@ case $start in
 			
 	;;
 
-		19)	echo -e "${MAGENTA}Beginning Update Checker Tool${NC}"
-
-			echo -e ""
-			
-			sccmultitool_update=$(curl https://raw.githubusercontent.com/grigzy28/SCC-Multitool/master/new-sccmultitool.sh)
-
-			echo -e ""
-			
-			if [[ $(cmp <(echo "$sccmultitool_update") ~/new-sccmultitool.sh) ]] && [[ $(diff <(echo "$sccmultitool_update") ~/new-sccmultitool.sh) ]]
-				then
-					update=$([[ -f ~/new-sccmultitool.sh ]] && echo "1" || echo "0")
-					echo "$sccmultitool_update" > ~/new-sccmultitool.sh
-					chmod +x ~/new-sccmultitool.sh
-
-					if [[ $update == "1" ]]
-						then
-							echo -e "${GREEN}New-SCCMultitool${NC} updated to the lastest version"
-						else
-							echo -e "${GREEN}new-sccmultitool${NC} installed"
-					fi
-
-					echo -e ""
-				else
-					echo -e "${GREEN}New-SCCMultitool${NC} is already updated to the lastest version"
-					echo -e ""
-					exit
-			fi
-
-			exit
-
-	;;
-
 		20)	echo -e "${YELLOW}Pringing Private Keys for all nodes${NC}"
 
 			echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} MN private keys${NC}"
@@ -1791,5 +1760,38 @@ case $start in
 			exit
 
 	;;
+
+		99)	echo -e "${MAGENTA}Beginning Update Checker Tool${NC}"
+
+			echo -e ""
+			
+			sccmultitool_update=$(curl https://raw.githubusercontent.com/grigzy28/SCC-Multitool/master/new-sccmultitool.sh)
+
+			echo -e ""
+			
+			if [[ $(cmp <(echo "$sccmultitool_update") ~/new-sccmultitool.sh) ]] && [[ $(diff <(echo "$sccmultitool_update") ~/new-sccmultitool.sh) ]]
+				then
+					update=$([[ -f ~/new-sccmultitool.sh ]] && echo "1" || echo "0")
+					echo "$sccmultitool_update" > ~/new-sccmultitool.sh
+					chmod +x ~/new-sccmultitool.sh
+
+					if [[ $update == "1" ]]
+						then
+							echo -e "${GREEN}New-SCCMultitool${NC} updated to the lastest version"
+						else
+							echo -e "${GREEN}new-sccmultitool${NC} installed"
+					fi
+
+					echo -e ""
+				else
+					echo -e "${GREEN}New-SCCMultitool${NC} is already updated to the lastest version"
+					echo -e ""
+					exit
+			fi
+
+			exit
+
+	;;
+
 
 esac
