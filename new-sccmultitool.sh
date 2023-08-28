@@ -1742,7 +1742,7 @@ case $start in
 
 			echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} MN private keys${NC}"
 
-			foundone=0
+			foundone=1
 
 			for i in $(ls /home/)
 				do
