@@ -172,16 +172,14 @@ function checkipv6file() {
 function checkaliasvalidity() {
 
 	local aliasname=$1
-	
-	if [[ -f /home/$aliasname/.${coindir}/${coinname}.conf ]]
+
+	if [[ ! -f /home/$aliasname/.${coindir}/${coinname}.conf ]]
 		then
-			return
-		else
 			echo -e ""
 			echo -e "${RED}Error node not found${NC}"
 			echo -e ""
 
-			exit
+		exit
 	fi
 
 }
@@ -810,12 +808,12 @@ function mn_uninstall() {
 		echo -e "${CYAN}Please enter MN alias name${NC}"
 		echo -e ""
 		read alias
-	
+
 		checkaliasvalidity $alias
-		
+
 		echo -e ""
 		echo -e "${YELLOW}Stopping ${MAGENTA}$alias${NC}"
-		
+
 		systemctl stop $alias
 		echo -e ""
 		echo -e "${YELLOW}Pausing script to ensure ${MAGENTA}$alias${YELLOW} has stopped${NC}"
