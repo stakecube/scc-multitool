@@ -1771,7 +1771,7 @@ case $start in
 
 		21)	echo -e "${YELLOW}Begining Multiple Nodes Uninstall Tool${NC}"
 			echo -e ""
-			echo -e "${YELLOW}Press Control-C to abort at alias selection to quit${NC}"
+			echo -e "${YELLOW}Press ${CYAN}Control-C${YELLOW} to abort at alias selection to quit${NC}"
 			echo -e ""
 
 			foundone=0
