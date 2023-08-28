@@ -915,6 +915,7 @@ case $start in
 		sleep 15
 
 		for i in $(ls /home/); do
+			echo -e ""
 			echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} MN's${NC}"
 			echo -e "${YELLOW}found ${CYAN}$i${NC}..."
 			echo -e ""
