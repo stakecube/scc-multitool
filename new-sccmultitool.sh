@@ -801,6 +801,7 @@ function offlinechainfilebuild() {
 
 function mn_uninstall() {
 		
+		echo -e ""
 		echo -e "${YELLOW}Checking home directory for MN alias's${NC}"
 		ls /home
 		echo -e ""
@@ -945,7 +946,6 @@ case $start in
 	;;
 
 	6)	echo -e "${YELLOW}Starting Removal tool${NC}"
-		echo -e ""
 
 		mn_uninstall
 
