@@ -76,6 +76,7 @@ echo -e "${YELLOW}17 - Check and install/update service files for sleep delay"
 echo -e "${YELLOW}18 - Install New Node with manually specified IPv6 Address"
 echo -e "${YELLOW}19 - Check for updated script from GitHub${NC}"
 echo -e "${YELLOW}20 - Output all nodes Private Keys${NC}"
+echo -e "${YELLOW}21 - Remove Multiple Masternodes"
 echo -e ""
 echo -e "${YELLOW}0  - Exit"
 echo -e ""
@@ -168,6 +169,23 @@ function checkipv6file() {
 
 }
 
+function checkaliasvalidity() {
+
+	local aliasname=$1
+	
+	if [[ -f /home/$aliasname/.${coindir}/${coinname}.conf ]]
+		then
+			return
+		else
+			echo -e ""
+			echo -e "${RED}Error node not found${NC}"
+			echo -e ""
+
+			exit
+	fi
+
+}
+
 function sleeprandomfilecheck() {
 
 			local sleepnumberfile=/usr/local/bin/sleeprandom
@@ -205,6 +223,9 @@ function chain_repair() {
 			echo -e "${CYAN}Please enter the masternode alias name to repair${NC}"
 			echo -e ""
 			read alias
+			
+			checkaliasvalidity $alias
+			
 		else
 			alias=$1
 	fi
@@ -753,6 +774,9 @@ function offlinechainfilebuild() {
 		echo -e "${YELLOW}Above are the alias names for the installed masternodes that you can create the bootstrap from${NC}"
 		echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
 		read alias
+		
+		checkaliasvalidity $alias
+		
 		echo -e ""
 		echo -e "${YELLOW}Stopping node ${CYAN}$alias${NC}"
 		echo -e ""
@@ -776,6 +800,36 @@ function offlinechainfilebuild() {
 		
 		return
 }
+
+function mn_uninstall() {
+
+		echo -e "${YELLOW}Checking home directory for MN alias's${NC}"
+		ls /home
+		echo -e ""
+		echo -e "${YELLOW}Above are the alias names for installed MN's${NC}"
+		echo -e "${CYAN}Please enter MN alias name${NC}"
+		echo -e ""
+		read alias
+	
+		checkaliasvalidity $alias
+		
+		echo -e ""
+		echo -e "${YELLOW}Stopping ${MAGENTA}$alias${NC}"
+		
+		systemctl stop $alias
+		echo -e ""
+		echo -e "${YELLOW}Pausing script to ensure ${MAGENTA}$alias${YELLOW} has stopped${NC}"
+		sleep 20
+		systemctl disable $alias
+		rm /usr/local/bin/$alias
+		rm /etc/systemd/system/$alias.service
+		deluser $alias
+		rm -r /home/$alias
+		echo -e ""
+		echo -e "${CYAN}$alias removed${NC}"
+
+}
+
 
 
 case $start in
@@ -894,26 +948,9 @@ case $start in
 
 	6)	echo -e "${YELLOW}Starting Removal tool${NC}"
 		echo -e ""
-		echo -e "${YELLOW}Checking home directory for MN alias's${NC}"
-		ls /home
-		echo -e ""
-		echo -e "${YELLOW}Above are the alias names for installed MN's${NC}"
-		echo -e "${CYAN}Please enter MN alias name${NC}"
-		echo -e ""
-		read alias
-		echo -e ""
-		echo -e "${YELLOW}Stopping ${MAGENTA}$alias${NC}"
-		systemctl stop $alias
-		echo -e ""
-		echo -e "${YELLOW}Pausing script to ensure ${MAGENTA}$alias${YELLOW} has stopped${NC}"
-		sleep 20
-		systemctl disable $alias
-		rm /usr/local/bin/$alias
-		rm /etc/systemd/system/$alias.service
-		deluser $alias
-		rm -r /home/$alias
-		echo -e ""
-		echo -e "${CYAN}$alias removed${NC}"
+
+		mn_uninstall
+
 		exit
 
 	;;
@@ -977,6 +1014,9 @@ case $start in
 		echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
 		echo -e ""
 		read alias
+		
+		checkaliasvalidity $alias
+		
 		echo -e ""
 
 		echo -e "${YELLOW}Stopping node ${CYAN}$alias${NC}"
@@ -1729,6 +1769,45 @@ case $start in
 
 			exit
 
-		;;
+	;;
+
+		21)	echo -e "${YELLOW}Begining Multiple Nodes Uninstall Tool${NC}"
+			echo -e ""
+			echo -e "${YELLOW}Press Control-C to abort at alias selection to quit${NC}"
+			echo -e ""
+
+			foundone=0
+
+			for i in $(ls /home/)
+				do
+					if [[ $i == *scc* ]]
+						then
+
+							foundone=1
+
+							echo -e "Checking home directory for masternode alias's"
+							echo -e ""
+							ls /home
+							echo -e ""
+							echo -e "${YELLOW}Above are the alias names for the installed masternodes${NC}"
+							echo -e "${CYAN}Please enter the masternode alias name to remove${NC}"
+							echo -e ""
+							read alias
+
+							checkaliasvalidity $alias
+
+							mn_uninstall $alias
+
+					fi
+				done
+
+			if [[ $foundone == 0 ]]
+				then
+					echo -e "${CYAN}Found no SCC node nodes${NC}"
+			fi
+
+			exit
+
+	;;
 
 		esac
