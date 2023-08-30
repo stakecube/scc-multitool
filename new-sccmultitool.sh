@@ -903,7 +903,7 @@ case $start in
 
 	;;
 
-    4)	echo -e "${YELLOW}Starting Wallet update tool ${CYAN}(All ${ticker}${YELLOW}) nodes${NC}"
+    4)	echo -e "${YELLOW}Starting Wallet update tool for ${CYAN}All ${ticker}${YELLOW} nodes${NC}"
 		echo -e ""
 		cd /usr/local/bin
 		rm $coinnamecli $coinnamed
