@@ -1,12 +1,12 @@
 #!/bin/bash
 #Coin info
-version="3.4.1.1"
+version="3.4.0"
 coinname=stakecubecoin
 coinnamed=sccd
 coinnamecli=scc-cli
 ticker=SCC
 coindir=scc
-binaries='https://github.com/stakecube/StakeCubeCoin/releases/download/v3.4.1.1/scc-3.4.1.1-x86_64-linux.zip'
+binaries='https://github.com/stakecube/StakeCubeCoin/releases/download/v3.4.0/scc-3.4.0-x86_64-linux-gnu.zip'
 snapshot='https://stakecubecoin.net/bootstrap.zip'
 port=40000
 rpcport=39999
@@ -383,6 +383,8 @@ function install_mn() {
 					spaces=$(( $spaces-2 ))
 					ipv6test="$(echo $dipv6 | grep -E '.{0,4}\/64')"
 					ipv6test2="$(echo $ipv6test | awk 'match($0,"/64"){print substr($0,RSTART-4,4)}')"
+					ipv6test2="$(echo $ipv6test2 | cut -d\: -f3)"
+					ipv6test2="$(echo $ipv6test2 | tr -d ':')"
 					ipv6test3=$(( $ipv6test2 + $netconfcount + 50 ))
 #					echo -e "ipv6test $ipv6test"
 #					echo -e "ipv6test2 $ipv6test2"
