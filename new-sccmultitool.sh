@@ -394,7 +394,7 @@ function install_mn() {
 #					echo -e "$netconfcount"
 					cipv6=$(( $ipv6test3 ))
 #					echo -e "$cipv6"
-					ipv6="$(echo $dipv6 | sed "s/$ipv6test2/$cipv6/g")"
+					ipv6="$(echo $dipv6 | sed "s/\:$ipv6test2/$cipv6/g")"
 					echo -e ""
 					echo -e "New IPv6 is $ipv6"
 					test="$(echo -e "$(pad " " $spaces) ${ipv6}")"
