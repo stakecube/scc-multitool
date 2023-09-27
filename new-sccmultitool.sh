@@ -74,7 +74,7 @@ echo -e "${YELLOW}15 - Check block count and optional chain repair (all ${ticker
 echo -e "${YELLOW}16 - Check status of disk space and memory usage"
 echo -e "${YELLOW}17 - Check and install/update service files for sleep delay"
 echo -e "${YELLOW}18 - Install New Node with manually specified IPv6 Address"
-echo -e "${YELLOW}20 - Output all nodes Private Keys${NC}"
+echo -e "${YELLOW}20 - Output all nodes IP and Private Keys${NC}"
 echo -e "${YELLOW}21 - Remove Multiple Masternodes"
 echo -e ""
 echo -e "${YELLOW}99 - Check for updated script from GitHub${NC}"
@@ -1713,9 +1713,9 @@ case $start in
 			
 	;;
 
-		20)	echo -e "${YELLOW}Pringing Private Keys for all nodes${NC}"
+		20)	echo -e "${YELLOW}Beginning Private Keys and IP for all nodes${NC}"
 
-			echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} MN private keys${NC}"
+			echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} IP/MN private keys${NC}"
 
 			foundone=0
 
@@ -1728,8 +1728,10 @@ case $start in
 
 							privkey=$(grep -e 'masternodeblsprivkey' /home/$i/.scc/stakecubecoin.conf | cut -d\= -f2)
 							grepcheckstatus=$?
+							ip=$(grep -e 'bind' /home/$i/.scc/stakecubecoin.conf | cut -d\= -f2)
 
 							echo -e "${YELLOW}found ${CYAN}$i${YELLOW}...${NC}"
+							echo -e "${CYAN}IP: ${GREEN}$ip${NC}"
 							echo -e "${CYAN}Private Key:${MAGENTA}$privkey${NC}"
 							echo -e ""
 					fi
@@ -1744,7 +1746,7 @@ case $start in
 
 	;;
 
-		21)	echo -e "${YELLOW}Begining Multiple Nodes Uninstall Tool${NC}"
+		21)	echo -e "${YELLOW}Beginning Multiple Nodes Uninstall Tool${NC}"
 			echo -e ""
 			echo -e "${YELLOW}Press ${CYAN}Control-C${YELLOW} to abort at alias selection to quit${NC}"
 			echo -e ""
