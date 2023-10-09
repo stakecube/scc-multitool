@@ -1,12 +1,12 @@
 #!/bin/bash
 #Coin info
-version="3.4.0"
+version="3.4.2.3"
 coinname=stakecubecoin
 coinnamed=sccd
 coinnamecli=scc-cli
 ticker=SCC
 coindir=scc
-binaries='https://github.com/stakecube/StakeCubeCoin/releases/download/v3.4.0/scc-3.4.0-x86_64-linux-gnu.zip'
+binaries='https://github.com/stakecube/StakeCubeCoin/releases/download/v3.4.2.3/scc-3.4.2.3-x86_64-linux-gnu.zip'
 snapshot='https://stakecubecoin.net/bootstrap.zip'
 port=40000
 rpcport=39999
