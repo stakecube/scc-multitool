@@ -1,5 +1,14 @@
-SCC Multi Tool script tested on Linux 18.04
-(Automatic IPv6 configuration is valid only for U18 contabo servers)
+SCC Multi Node Tools script
+
+Tested on Ubuntu Linux 18.04 thru 22.04 LTS server versions
+
+Options labeled Contabo ONLY will not work with standard Ubuntu installs
+
+Auto assigning IPV6 should function with standard Ubuntu Server installs without modification
+
+It is NOT designed for Desktop GUI Ubuntu installs (Will most likely not work correctly or at all)
+
+-----------------------------------------------------------------------------------------------
 
 SCC MN install guide
 
@@ -10,47 +19,47 @@ Full guide
 https://stakecube.info/stakecubecoin-dip3-masternode-setup-full-guide/
 
 
+-----------------------------------------------------------------------------------------------
+
 Commands to install sccmultitool.sh
 
-wget https://raw.githubusercontent.com/stakecube/SCC-multitool/master/sccmultitool.sh
+```
+curl -s https://raw.githubusercontent.com/stakecube/SCC-multitool/master/sccmultitool.sh | bash -
+```
 
-chmod +x sccmultitool.sh
+#```
+#chmod +x sccmultitool.sh
+#```
 
+To execute type:
+
+```
 ./sccmultitool.sh
+```
+
+-----------------------------------------------------------------------------------------------
 
 
-New server note
+New server note:
+
 New server and IPv6 setup only needs to be set up once per server.
 
-
-MultiNode note
-To run multiple MN's on one server you will need to use the IPv6 option when promted in option 6 enter a unique Alias, BLS secret key, and rpc port each time you run masternode install tool.
+-----------------------------------------------------------------------------------------------
 
 
-Masternode install note
+MultiNode note:
 
-Alias = Name of your MN, Must all be in lower case with no spaces or special characters and also include "scc" in the name for multi tools
+To run multiple MN's on one server you will need to use the IPv6 option when prompted in the install masternode option
+Enter a unique Alias, BLS secret key, and rpc port each time you run the masternode install tool.
 
-secret key= get this from your control wallets console using the command
-
-bls generate
-
-note this info and enter carefully
-
-Port = Default port is 40000 and is set for you
-
-RPCport = Default RPCport is 39999 use unique for multinode
+-----------------------------------------------------------------------------------------------
 
 
-Check.sh instructions (This will be replaced with the health check and repair tool soon)
+Masternode install notes:
 
-Updated check.sh file for new commands if you are using an older version of this script
-wget https://github.com/stakecube/SCC-multitool/blob/master/check.sh
+Alias = Name of your MN, Must all be in lower case with no spaces or special characters and also include "scc" in the name for the multi tools to function
+BLS secret key - get this from your control wallets console using the command `bls generate`
 
-chmod +x check.sh
+`Please note this info and enter carefully also make sure to keep a copy of this information as you will need it later for maintenance`
 
-The new server option will also add a file in root named check.sh
-edit this file using 
-nano check.sh
-add node alias to "node="
-example "node1=alias"
+RPCport = Default RPCport is 39999, please make sure to use a unique number for each node instance otherwise nodes will not start
