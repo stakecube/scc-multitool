@@ -24,7 +24,7 @@ https://stakecube.info/stakecubecoin-dip3-masternode-setup-full-guide/
 Commands to install sccmultitool.sh
 
 ```
-curl -s https://raw.githubusercontent.com/stakecube/SCC-multitool/master/sccmultitool.sh | bash -
+curl -s https://raw.githubusercontent.com/stakecube/SCC-multitool/master/sccmultitool.sh > ~/sccmultitool.sh | bash -cl "chmod +x ~/sccmultitool.sh"
 ```
 
 To execute type:
