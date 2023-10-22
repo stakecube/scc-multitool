@@ -27,10 +27,6 @@ Commands to install sccmultitool.sh
 curl -s https://raw.githubusercontent.com/stakecube/SCC-multitool/master/sccmultitool.sh | bash -
 ```
 
-#```
-#chmod +x sccmultitool.sh
-#```
-
 To execute type:
 
 ```
