@@ -1,12 +1,12 @@
 #!/bin/bash
 #Coin info
-version="3.4.2.3-df60e0c"
+version="3.4.0"
 coinname=stakecubecoin
 coinnamed=sccd
 coinnamecli=scc-cli
 ticker=SCC
 coindir=scc
-binaries='https://github.com/stakecube/StakeCubeCoin/releases/download/v3.4.2.3/scc-3.4.2.3-x64-linux-nodes.zip'
+binaries='https://github.com/stakecube/StakeCubeCoin/releases/download/v3.4.0/scc-3.4.0-x86_64-linux-gnu.zip'
 snapshot='https://stakecubecoin.net/bootstrap.zip'
 port=40000
 rpcport=39999
@@ -74,6 +74,7 @@ echo -e "${YELLOW}15 - Check block count and optional chain repair (all ${ticker
 echo -e "${YELLOW}16 - Check status of disk space and memory usage"
 echo -e "${YELLOW}17 - Check and install/update service files for sleep delay"
 echo -e "${YELLOW}18 - Install New Node with manually specified IPv6 Address"
+echo -e "${YELLOW}19 - Masternode install with optional sleep delay function"
 echo -e "${YELLOW}20 - Output all nodes IP and Private Keys${NC}"
 echo -e "${YELLOW}21 - Remove Multiple Masternodes"
 echo -e ""
@@ -309,6 +310,7 @@ function install_mn() {
 
 	local bypassipv6setup=$1
 	local bypassipv6addr=$2
+	local sleepdelay=$3
 
 	if [[ $bypassipv6setup == yes ]]
 		then
@@ -397,9 +399,9 @@ function install_mn() {
 					ipv6="$(echo $dipv6 | sed "s/\:$ipv6test2/\:$cipv6/g")"
 					echo -e ""
 					echo -e "New IPv6 is $ipv6"
-					test="$(echo -e "$(pad " " $spaces) ${ipv6}")"
-#					echo -e "$test"
-#					sed -i "${linenumber2}i\\${test}" $netcfg
+					finalconfigipv6="$(echo -e "$(pad " " $spaces) ${ipv6}")"
+#					echo -e "$finalconfigipv6"
+#					sed -i "${linenumber2}i\\${finalconfigipv6}" $netcfg
 
 
 #			sed -i '1{/^$/d}' $netcfg
@@ -458,7 +460,7 @@ function install_mn() {
 			echo -e ""
 			echo -e "${CYAN}Applying IP configuration${NC}"
 
-			sed -i "${linenumber2}i\\${test}" $netcfg
+			sed -i "${linenumber2}i\\${finalconfigipv6}" $netcfg
 
 			netplan apply
 	fi
@@ -530,7 +532,12 @@ EOF
 	echo -e "Group=root" >> $alias.service
 	echo -e "" >> $alias.service
 	echo -e "Type=forking" >> $alias.service
-	echo -e "ExecStartPre=/usr/local/bin/sleeprandom" >> $alias.service
+	
+	if [[ $sleepdelay == yes ]]
+		then
+			echo -e	echo -e "ExecStartPre=/usr/local/bin/sleeprandom" >> $alias.service
+	fi
+		
 	echo -e "ExecStart=/usr/local/bin/$coinnamed -daemon -conf=/home/$alias/.$coindir/$coinname.conf -datadir=/home/$alias/.$coindir">> $alias.service
 	echo -e "ExecStop=-/usr/local/bin/$coinnamecli -conf=/home/$alias/.$coindir/$coinname.conf -datadir=/home/$alias/.$coindir stop" >> $alias.service
 	echo -e "" >> $alias.service
@@ -1711,6 +1718,14 @@ case $start in
 			
 			exit
 			
+	;;
+
+		19)	echo -e "${YELLOW}Starting $ticker MasterNode install with Sleep Delay functionality${NC}"
+
+			install_mn "no" "" "yes"
+
+			exit
+
 	;;
 
 		20)	echo -e "${YELLOW}Beginning Private Keys and IP for all nodes${NC}"
