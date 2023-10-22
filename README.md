@@ -46,6 +46,7 @@ New server and IPv6 setup only needs to be set up once per server.
 MultiNode note:
 
 To run multiple MN's on one server you will need to use the IPv6 option when prompted in the install masternode option
+
 Enter a unique Alias, BLS secret key, and rpc port each time you run the masternode install tool.
 
 -----------------------------------------------------------------------------------------------
