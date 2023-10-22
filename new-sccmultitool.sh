@@ -82,12 +82,15 @@ echo -e "${YELLOW}99 - Check for updated script from GitHub${NC}"
 echo -e ""
 echo -e "${YELLOW}0  - Exit"
 echo -e ""
-echo -e "${RED}Warning: ${MAGENTA}This script now uses a sleep delay of up to 5 minutes per node startup${NC}"
+echo -e "${MAGENTA}This script can now use a sleep delay of up to 5 minutes per node startup${NC}"
 echo -e "${MAGENTA}This helps to prevent the VPS from being overloaded upon reboot when there are many nodes installed${NC}"
 echo -e "${MAGENTA}This can make the install/start/restart/repair node(s) look like it has stopped working${NC}"
 echo -e "${MAGENTA}This is a side effect of the delay only(If it occurs)${NC}"
 echo -e ""
+echo -e "${YELLOW}This is an ${RED}OPTIONAL${YELLOW} feature that you can use by selecting appropriate options${NC}"
+echo -e ""
 echo -e "${YELLOW}Please run the check install/update service files before installing nodes${NC}"
+echo -e "${RED}only IF${YELLOW} you want to use the sleep delay functionality${NC}"
 echo -e "${YELLOW}It only needs to be ran once${NC}"
 echo -e "${NC}"
 read -p "> " start
@@ -492,7 +495,12 @@ EOF
 	echo -e ""
 
 	#Sleep/Delay check and install
-	sleeprandomfilecheck
+	
+	if [[ $sleepdelay == yes ]]
+		then
+			sleeprandomfilecheck
+	fi
+
 	
 	#Node binaries check and install if needed
 	cd /usr/local/bin
@@ -535,7 +543,7 @@ EOF
 	
 	if [[ $sleepdelay == yes ]]
 		then
-			echo -e	echo -e "ExecStartPre=/usr/local/bin/sleeprandom" >> $alias.service
+			echo -e "ExecStartPre=/usr/local/bin/sleeprandom" >> $alias.service
 	fi
 		
 	echo -e "ExecStart=/usr/local/bin/$coinnamed -daemon -conf=/home/$alias/.$coindir/$coinname.conf -datadir=/home/$alias/.$coindir">> $alias.service
