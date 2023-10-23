@@ -1,13 +1,12 @@
 #!/bin/bash
 #Coin info
 version="3.4.2.11"
-binariesfilename='scc-3.4.2.11-linux-nodes-u18.zip'
 coinname=stakecubecoin
 coinnamed=sccd
 coinnamecli=scc-cli
 ticker=SCC
 coindir=scc
-binaries="https://github.com/stakecube/StakeCubeCoin/releases/download/$version/$binariesfilename"
+binaries="https://github.com/stakecube/StakeCubeCoin/releases/download/v3.4.2.11/scc-3.4.2.11-linux-nodes-u18.zip"
 snapshot='https://stakecubecoin.net/bootstrap.zip'
 port=40000
 rpcport=39999
@@ -107,7 +106,7 @@ fi
 
 function displaypause() {
 
-        delaycount=$1
+        local delaycount=$1
 
         while [ $delaycount -ge 0 ]
                  do
