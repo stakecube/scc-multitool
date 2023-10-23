@@ -1,20 +1,20 @@
 #!/bin/bash
 #Coin info
-version="3.4.2.11-46cf3ad"
+version="3.4.2.11"
 binariesfilename='scc-3.4.2.11-linux-nodes-u18.zip'
 coinname=stakecubecoin
 coinnamed=sccd
 coinnamecli=scc-cli
 ticker=SCC
 coindir=scc
-binaries="https://github.com/stakecube/StakeCubeCoin/releases/download/v3.4.2.11/$binariesfilename"
+binaries="https://github.com/stakecube/StakeCubeCoin/releases/download/$version/$binariesfilename"
 snapshot='https://stakecubecoin.net/bootstrap.zip'
 port=40000
 rpcport=39999
 discord='https://discord.gg/xxjZzJE'
 
 #pre-setup checks and dependencies installs
-echo -e "Checking/installing other script dependency's"
+echo -e "Checking/installing/updating other script dependency's"
 apt -y -qq install curl zip unzip nano ufw software-properties-common pwgen p7zip-full p7zip-rar
 
 #setup variables for passwords
@@ -38,6 +38,8 @@ readonly DARKCYAN='\e[0;36m'
 readonly CYAN='\e[1;36m'
 readonly UNDERLINE='\e[1;4m'
 readonly NC='\e[0m'
+readonly ERASEBACK='\e[1K'
+readonly BEGINLINE='\e[0G'
 
 clear
 
@@ -102,6 +104,25 @@ if [[ $start == "" ]]
 	then
 		start=99
 fi
+
+function displaypause() {
+
+        delaycount=$1
+
+        while [ $delaycount -ge 0 ]
+                 do
+                        echo -en "${GREEN}Countdown ${NC}$delaycount"
+                        sleep 1
+                        echo -en "${ERASEBACK}${NC}${BEGINLINE}${NC}"
+                        delaycount=$(($delaycount - 1))
+                done
+
+        echo -e ""
+
+        return
+
+}
+
 
 
 function is_number() {
@@ -209,7 +230,7 @@ function sleeprandomfilecheck() {
 				else
 					echo -e "${CYAN}Installing sleep/delay file${NC}"
 					cd /usr/local/bin
-					echo -e "#!/bin/bash" >> $sleepnumberfile
+					echo -e "#!/bin/bash" > $sleepnumberfile
 					echo -e "MINWAIT=10" >> $sleepnumberfile
 					echo -e "MAXWAIT=310" >> $sleepnumberfile
 					echo -e 'sleep $((MINWAIT+RANDOM%(MAXWAIT-MINWAIT)))' >> $sleepnumberfile
@@ -291,7 +312,7 @@ function chain_repair() {
 			exit
 	fi
 	
-	sleep 10
+	displaypause 10
 
 
 	if [[ $bootstrapchoice != "yes" ]]
@@ -349,7 +370,7 @@ function chain_repair() {
 	echo -e "${CYAN}Starting $alias after repair${NC}"
 	echo -e ""
 	systemctl start --no-block ${alias}.service
-	sleep 10
+	displaypause 10
 
 	echo -e "${YELLOW}Please wait for a moment.. and use ${CYAN}$alias masternode status${YELLOW} to check if $alais is ready for POSE unban or still showing READY${NC}"
 	echo -e "${YELLOW}If $alias showing POSE banned you will need to run the protx update command to unban${NC}"
@@ -700,7 +721,7 @@ EOF
 
 	echo -e ""
 	echo -e "${YELLOW}Please wait a moment and then read the following information${NC}"
-	sleep 15
+	displaypause 15
 	echo -e ""
 	echo -e "${CYAN}$ticker${YELLOW} MN setup completed${NC}"
 	echo -e ""
@@ -730,7 +751,7 @@ EOF
 function ipv6_setup() {
 
 	#Enable IPv6
-	sleep 2
+	displaypause 2
 	sed -i "/net.ipv6.conf.all.disable_ipv6.*/d" /etc/sysctl.conf
 	sysctl -q -p
 	
@@ -777,7 +798,7 @@ function ipv6_setup() {
 
 	netplan generate
 	netplan apply
-	sleep 5
+	displaypause 5
 
 }
 
@@ -845,7 +866,7 @@ function offlinechainfilebuild() {
 		echo -e ""
 		
 		systemctl stop $alias.service
-		sleep 5
+		displaypause 5
 		
 		echo -e "${YELLOW}Starting the zip process${NC}"
 		
@@ -883,7 +904,7 @@ function mn_uninstall() {
 		systemctl stop $alias
 		echo -e ""
 		echo -e "${YELLOW}Pausing script to ensure ${MAGENTA}$alias${YELLOW} has stopped${NC}"
-		sleep 20
+		displaypause 20
 		systemctl disable $alias
 		rm /usr/local/bin/$alias
 		rm /etc/systemd/system/$alias.service
@@ -960,7 +981,7 @@ case $start in
 		chmod +x ${coinnamecli} ${coinnamed}
 		rm ${coinname}.zip
 		cd /root
-		sleep 15
+		displaypause 15
 
 		for i in $(ls /home/); do
 			echo -e ""
@@ -972,12 +993,12 @@ case $start in
 				then
 					echo -e "${YELLOW}Restarting ${CYAN}$i${YELLOW}..${NC}"
 					systemctl stop $i
-					sleep 3
+					displaypause 3
 					systemctl start --no-block $i
 					echo -e "${CYAN}$i${YELLOW} updated and restarted${NC}"
 					echo -e ""
 					echo -e "${YELLOW}Pausing for 2 minutes to let ${CYAN}$i${YELLOW} settle${NC}"
-					sleep 120
+					displaypause 120
 				else
 					echo -e "${YELLOW}No ${CYAN}$ticker${YELLOW} MN's found to update${NC}"
 			fi
@@ -1011,7 +1032,7 @@ case $start in
 								if [[ $stopstart == "restart" ]]
 									then
 										systemctl stop $i
-										sleep 5
+										displaypause 5
 										systemctl start --no-block $i
 									else
 										systemctl $stopstart --no-block $i
@@ -1020,11 +1041,11 @@ case $start in
 								if [[ $stopstart == "stop" ]]
 									then
 										echo -e "${YELLOW}Pausing for 10 seconds${NC}"
-										sleep 10
+										displaypause 10
 										echo -e ""
 									else
 										echo -e "Pausing for 2 minutes to let ${CYAN}$i${NC} settle"
-										sleep 120
+										displaypause 120
 										echo -e ""
 								fi
 							else
@@ -1161,7 +1182,7 @@ case $start in
 		echo -e ""
 		echo -e "${YELLOW}Pausing for 30 seconds${NC}"
 
-		sleep 30
+		displaypause 30
 
 		cd /home/$alias
 		find /home/$alias/.${coindir}/ -name ".lock" -delete
