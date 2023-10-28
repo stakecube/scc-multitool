@@ -291,10 +291,33 @@ function chain_repair() {
 					echo -e "${CYAN}$i ${NC}sccnode: $nodeblock   explorer: $currentblock      ${RED}Different block count from explorer${NC}"
 					echo -e ""
 					echo -e "${CYAN}Continuing with repair of node${NC}"
+					echo -e ""
+					echo -e "${YELLOW}Do you wish to still chain repair?"
+					echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"					
+					read checkchainrepair1
+					
+					checkyesno $checkchainrepair1
+					
+					if [[ $checkchainrepair1 == "no" ]]
+						then
+							exit
+					fi
+
 			fi
 		else
 			echo -e "${RED}Something is wrong with ${CYAN}$alias${NC}"
 			echo -e "${YELLOW}Continuing repair${NC}"
+			echo -e ""
+			echo -e "${YELLOW}Do you wish to still chain repair?"
+			echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"					
+			read checkchainrepair2
+
+			checkyesno $checkchainrepair2
+
+			if [[ $checkchainrepair2 == "no" ]]
+				then
+					exit
+			fi
 	fi
 	
 	echo -e ""
@@ -338,11 +361,13 @@ function chain_repair() {
 			if test -e "$sccfile"
 				then
 					7za x ~/${coinname}.zip
-					echo -e "${YELLOW}$coinname local bootstrap directory updated${NC}"
+					echo -e "${YELLOW}$coinname local chain directory updated${NC}"
 				else
+					echo -e ""
 					echo -e "${RED}File doesn't exist${NC}, ${YELLOW}downloading chain${NC}"
 					wget -nv --show-progress ${snapshot} -O ~/${coinname}.zip
 					7za x ~/${coinname}.zip
+					echo -e ""
 					echo -e "${YELLOW}$coinname chain directory updated${NC}"
 			fi
 		else
@@ -362,15 +387,17 @@ function chain_repair() {
 			wget -nv --show-progress ${snapshot} -O ~/${coinname}.zip
 			7za x ~/${coinname}.zip
 			echo -e ""
-			echo -e "${YELLOW}$coinname chain directory setup${NC}"
+			echo -e "${YELLOW}$coinname chain directory updated${NC}"
 	fi
 
 	chown -R $alias:$alias /home/${alias}
+	echo -e ""
 	echo -e "${CYAN}Starting $alias after repair${NC}"
 	echo -e ""
 	systemctl start --no-block ${alias}.service
 	displaypause 10
 
+	echo -e ""
 	echo -e "${YELLOW}Please wait for a moment.. and use ${CYAN}$alias masternode status${YELLOW} to check if $alais is ready for POSE unban or still showing READY${NC}"
 	echo -e "${YELLOW}If $alias showing POSE banned you will need to run the protx update command to unban${NC}"
 	echo -e "${YELLOW}Below is an example of the protx update command to use in your main wallets debug console${NC}"
