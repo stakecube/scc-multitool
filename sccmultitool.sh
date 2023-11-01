@@ -18,8 +18,9 @@ checkforrunningapt=$(ps -e | grep apt)
 if [[ $checkforrunningapt == "" ]]
         then
                 echo -e "Apt not currently running"
+				echo -e ""
         else
-                echo -e "Apt is already running, please stop apt or reboot the system"
+                echo -e "${RED}Error:${NC} Apt is already running, aborting"
                 exit
 fi
 
@@ -51,6 +52,15 @@ readonly ERASEBACK='\e[1K'
 readonly BEGINLINE='\e[0G'
 
 clear
+
+sccmultitool_update=$(curl -s https://raw.githubusercontent.com/stakecube/SCC-Multitool/master/sccmultitool.sh)
+
+if [[ $(cmp <(echo "$sccmultitool_update") ~/sccmultitool.sh) ]] && [[ $(diff <(echo "$sccmultitool_update") ~/sccmultitool.sh) ]]
+	then
+		updatesccmultitool=$([[ -f ~/sccmultitool.sh ]] && echo "1" || echo "0")
+	else
+		updatesccmultitool=0
+fi
 
 cat << "EOF" 
    _____ _        _         _____      _
@@ -103,6 +113,13 @@ echo -e "${YELLOW}This is an ${RED}OPTIONAL${YELLOW} feature that you can use by
 echo -e "${YELLOW}Please run the check install/update service files before installing nodes${NC}"
 echo -e "${RED}only IF${YELLOW} you want to use the sleep delay functionality, it only needs to be ran once${NC}"
 echo -e "${NC}"
+
+if [[ $updatesccmultitool == "1" ]]
+	then
+		echo -e "${CYAN}New version of ${GREEN}SCCMultitool${NC}${CYAN} available${NC}"
+		echo -e ""
+fi
+
 read -p "> " start
 echo -e ""
 
@@ -158,7 +175,7 @@ function checkyesno() {
 		then
 			return
 		else
-			echo -e "${YELLOW}Please enter only${CYAN} yes${YELLOW} or${CYAN} no${NC}"
+			echo -e "${YELLOW}Please enter only${MAGENTA} yes${YELLOW} or${MAGENTA} no${NC}"
 			echo -e ""
 			echo -e "${RED}Aborting script${NC}"
 			echo -e ""
@@ -266,14 +283,14 @@ function chain_repair() {
 			echo -e "${CYAN}Please enter the masternode alias name to repair${NC}"
 			echo -e ""
 			read alias
-			
+
 			checkaliasvalidity $alias
 	fi
 
 	echo -e ""
 	echo -e "${YELLOW}Checking ${CYAN}$alias${YELLOW} block count against explorer"
 	echo -e ""
-	
+
 	currentblock=$(curl -s https://www.coinexplorer.net/api/v1/SCC/getblockcount)
 	nodeblock=$($alias getblockcount)
 	nodestatus=$?
@@ -287,11 +304,11 @@ function chain_repair() {
 					echo -e "${MAGENTA}Chain Repair is not needed for this node"
 					echo -e ""
 					echo -e "${YELLOW}Do you wish to still do the chain repair?"
-					echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"					
+					echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 					read forcechainrepair
-					
+
 					checkyesno $forcechainrepair
-					
+
 					if [[ $forcechainrepair == "no" ]]
 						then
 							return
@@ -303,11 +320,11 @@ function chain_repair() {
 					echo -e "${CYAN}Continuing with repair of node${NC}"
 					echo -e ""
 					echo -e "${YELLOW}Do you wish to still chain repair?"
-					echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"					
+					echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 					read checkchainrepair1
-					
+
 					checkyesno $checkchainrepair1
-					
+
 					if [[ $checkchainrepair1 == "no" ]]
 						then
 							exit
@@ -319,7 +336,7 @@ function chain_repair() {
 			echo -e "${YELLOW}Continuing repair${NC}"
 			echo -e ""
 			echo -e "${YELLOW}Do you wish to still chain repair?"
-			echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"					
+			echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 			read checkchainrepair2
 
 			checkyesno $checkchainrepair2
@@ -329,21 +346,21 @@ function chain_repair() {
 					exit
 			fi
 	fi
-	
+
 	echo -e ""
 	echo -e "Stopping ${MAGENTA}$alias${NC}"
 	aliasvalid=$(systemctl stop $alias)
 	aliasvalidstatus=$?
-	
+
 	if [[ $aliasvalidstatus != 0 ]]
 		then
 			echo -e ""
 			echo -e "${RED}Error: ${CYAN}$alias ${MAGENTA} does not exist or has other errors${NC}"
 			echo -e ""
-			
+
 			exit
 	fi
-	
+
 	displaypause 10
 
 
@@ -385,7 +402,7 @@ function chain_repair() {
 			echo -e "${YELLOW}Do you wish to download from the web (${CYAN}yes${YELLOW}) or full chain downlaod (${CYAN}no${YELLOW})${NC}"
 			echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 			read chaindownload
-			
+
 			checkyesno $chaindownload
 	fi
 
@@ -442,13 +459,13 @@ function install_mn() {
 	echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
 	echo -e "${YELLOW}To use other tools you must include ${CYAN}$ticker${YELLOW} in the alias${NC}"
 	read alias
-	
+
 	if [[ -f /home/$alias/.${coindir}/${coinname}.conf ]]
 		then
 			echo -e ""
 			echo -e "${RED}Error duplicate node name${NC}"
 			echo -e ""
-			
+
 			exit
 	fi
 
@@ -559,7 +576,7 @@ function install_mn() {
 			echo -e "${YELLOW}Do you wish to download from the web (${CYAN}yes${YELLOW}) or full chain downlaod (${CYAN}no${YELLOW})${NC}"
 			echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 			read chaindownload
-			
+
 			checkyesno $chaindownload
 		else
 			chaindownload=0
@@ -602,13 +619,13 @@ EOF
 	echo -e ""
 
 	#Sleep/Delay check and install
-	
+
 	if [[ $sleepdelay == yes ]]
 		then
 			sleeprandomfilecheck
 	fi
 
-	
+
 	#Node binaries check and install if needed
 	cd /usr/local/bin
 	binfile=/usr/local/bin/${coinnamecli}
@@ -647,12 +664,12 @@ EOF
 	echo -e "Group=root" >> $alias.service
 	echo -e "" >> $alias.service
 	echo -e "Type=forking" >> $alias.service
-	
+
 	if [[ $sleepdelay == yes ]]
 		then
 			echo -e "ExecStartPre=/usr/local/bin/sleeprandom" >> $alias.service
 	fi
-		
+
 	echo -e "ExecStart=/usr/local/bin/$coinnamed -daemon -conf=/home/$alias/.$coindir/$coinname.conf -datadir=/home/$alias/.$coindir">> $alias.service
 	echo -e "ExecStop=-/usr/local/bin/$coinnamecli -conf=/home/$alias/.$coindir/$coinname.conf -datadir=/home/$alias/.$coindir stop" >> $alias.service
 	echo -e "" >> $alias.service
@@ -675,10 +692,10 @@ EOF
 	find /home/$alias/.${coindir}/* ! -name "wallet.dat" ! -name "*.conf" -delete
 	echo -e "${YELLOW}Downloading and/or Unzipping chain files for ${MAGENTA}$alias${NC}"
 	echo -e ""
-	
+
 	mkdir /home/$alias/.${coindir}
 	chown $alias:$alias /home/$alias/.${coindir}
-	
+
 	if [[ $bootstrapchoice == yes ]] && [[ $chaindownload == 0 ]]
 		then
 			sccfile=~/${coinname}.zip
@@ -752,7 +769,7 @@ EOF
 	echo -e "${YELLOW}Permissions and firewall rules set${NC}"
 	echo -e ""
 	echo -e "${YELLOW}Starting Node${NC}"
-	
+
 	systemctl start --no-block $alias
 
 	echo -e ""
@@ -790,26 +807,26 @@ function ipv6_setup() {
 	displaypause 2
 	sed -i "/net.ipv6.conf.all.disable_ipv6.*/d" /etc/sysctl.conf
 	sysctl -q -p
-	
+
 	filefixed=0
 	netcfg=/etc/netplan/50-cloud-init.yaml
 	netcfg2=/etc/netplan/01-netcfg.yaml
 	cloudinit=/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
-		
+
 	if [[ -f $netcfg ]]
 		then
 			echo -e "${CYAN}Determined Auto Configuration in place.${NC}"
 			echo -e "${CYAN}Do you wish to disable auto and setup static network configuration?${NC}"
 			echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 			read autoconfigchoice
-			
+
 			checkyesno $autoconfigchoice
-			
+
 			if [[ $autoconfigchoice == yes ]]
 				then
 					mv $netcfg $netcfg2
 					filefixed=1
-			
+
 					if [[ -f $cloudinit ]]
 						then
 							netdone=0
@@ -894,35 +911,35 @@ function offlinechainfilebuild() {
 		echo -e "${YELLOW}Above are the alias names for the installed masternodes that you can create the bootstrap from${NC}"
 		echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
 		read alias
-		
+
 		checkaliasvalidity $alias
-		
+
 		echo -e ""
 		echo -e "${YELLOW}Stopping node ${CYAN}$alias${NC}"
 		echo -e ""
-		
+
 		systemctl stop $alias.service
 		displaypause 5
-		
+
 		echo -e "${YELLOW}Starting the zip process${NC}"
-		
+
 		rm ~/stakecubecoin.zip
-		
+
 		cd /home/$alias
 		7za a -tzip -r '-xr!wallet.dat' '-xr!*.conf' '-xr!debug.log' -- ~/stakecubecoin.zip .scc/*
-		
+
 		echo -e ""
 		echo -e "${YELLOW}Done creating offline boostrap file${NC}"
 		echo -e ""
 		echo -e "${YELLOW}Starting ${CYAN}$alias${NC}"
-		
+
 		systemctl start --no-block $alias.service
-		
+
 		return
 }
 
 function mn_uninstall() {
-		
+
 		echo -e ""
 		echo -e "${YELLOW}Checking home directory for MN alias's${NC}"
 		ls /home
@@ -1064,7 +1081,7 @@ case $start in
 						if [[ $i == *scc* ]]
 							then
 								echo -e "${MAGENTA}${stopstart}ing ${CYAN}$i${MAGENTA}..${NC}"
-								
+
 								if [[ $stopstart == "restart" ]]
 									then
 										systemctl stop $i
@@ -1073,7 +1090,7 @@ case $start in
 									else
 										systemctl $stopstart --no-block $i
 								fi
-								
+
 								if [[ $stopstart == "stop" ]]
 									then
 										echo -e "${YELLOW}Pausing for 10 seconds${NC}"
@@ -1145,7 +1162,7 @@ case $start in
 		echo -e ""
 		echo -e "${YELLOW}Please specify a valid IPv6 address${NC}"
 		read manualipv6addr
-		
+
 		echo -e ""
 		echo -e "${MAGENTA}Testing ipv6 address${NC}"
 
@@ -1159,7 +1176,7 @@ case $start in
 				echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 				read sleepquestion
 				checkyesno $sleepquestion
-				
+
 				if [[ $sleepquestion == "no" ]]
 					then
 						install_mn "yes" "$manualipv6addr" "no"
@@ -1169,9 +1186,9 @@ case $start in
 			else
 				echo -e "${RED}Error: ${CYAN}IP is invalid${NC}"
 		fi
-		
+
 		exit
-			
+
 	;;
 
 	11)	echo -e "${CYAN}Downloading updated bootstrap for offline install/repair from StakeCube${NC}"
@@ -1182,11 +1199,11 @@ case $start in
 	;;
 
 	12)	offlinechainfilebuild
-	
+
 		exit
-		
+
 	;;
-	
+
 
 	13)	echo -e "${YELLOW}Starting chain repair/PoSe maintenance tool${NC}"
 
@@ -1206,9 +1223,9 @@ case $start in
 		echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
 		echo -e ""
 		read alias
-		
+
 		checkaliasvalidity $alias
-		
+
 		echo -e ""
 
 		echo -e "${YELLOW}Stopping node ${CYAN}$alias${NC}"
@@ -1274,38 +1291,45 @@ case $start in
 
 	16)	echo -e "Beginning Status Checks of Nodes"
 
+		foundone=0
 		updatechainfile=0
 		offlinerepairall=0
 		updateallnodes=0
 		blockcompare=0
 
+		echo -e ""
+		echo -e "${YELLOW}Checking for $ticker MN's${NC}"
+		echo -e ""
+
 		for i in $(ls /home/); do
 
-			echo -e "${YELLOW}Checking for $ticker MN's${NC}"
-			echo -e "found ${CYAN}$i${NC}..."
 #			echo -e ""
 
 			if [[ $i == *scc* ]]
 				then
-					updatechainfilelocal=0
-					mn_status=0
+					foundone=1
+
+					echo -e "found ${CYAN}$i${NC}..."
+
+					updatechainfilelocal=""
+					mn_status=""
 					mn_status=$($i masternode status)
 					mn_status_exitcode=$?
 					mn_status_exitcode2=0
-					
+
 #					echo -e "$mn_status"
 #					echo -e ""
 #					echo -e "${CYAN}$i${NC}"
 
 					grep -e 'state' <<< $mn_status
 					grep -e 'status' <<< $mn_status
-					
+
 					if grep -q 'POSE' <<< $mn_status
 						then 
 							mn_status_exitcode2=1
 							echo -e "Got here POSE"
 					fi
-					
+
 					if grep -q 'ERROR' <<< $mn_status
 						then 
 							mn_status_exitcode2=1
@@ -1321,7 +1345,7 @@ case $start in
 #					grep -e 'ERROR' <<< $mn_status > /dev/null
 #					mn_status_exitcode2=$?
 					echo -e ""
-					
+
 					if [[ $mn_status_exitcode != 0 ]] || [[ $mn_status_exitcode2 != 0 ]]
 						then
 							mn_status_exitcode=1
@@ -1330,12 +1354,12 @@ case $start in
 							mn_status_exitcode=0
 							mn_status_exitcode2=0
 					fi
-				
+
 					if [[ $mn_status_exitcode != 0 ]]
 						then
 							echo -e "${RED}Something appears to be wrong with node ${CYAN}$i${NC}"
 							echo -e ""
-							
+
 							if [[ $updateallnodes == 0 ]]
 								then
 									echo -e "${YELLOW}Do you wish to initiate repair of this node${NC}"
@@ -1343,7 +1367,7 @@ case $start in
 									read repairnode
 									checkyesno $repairnode
 							fi
-							
+
 							if [[ $repairnode == yes ]]
 								then
 									if [[ $updatechainfile == 0 ]]
@@ -1362,7 +1386,7 @@ case $start in
 													echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 													read updatechainfilelocal
 													checkyesno $updatechainfilelocal
-													
+
 													if [[ $updatechainfilelocal == "yes" ]]
 														then
 															offlinechainfilebuild
@@ -1376,17 +1400,17 @@ case $start in
 									fi
 
 									repairnode="yes"
-									
+
 								else
 									echo -e ""
 									echo -e "${RED}Not repairing node at this time${NC}"
 									echo -e ""
 									mn_status_exitcode=0
 									mn_status=0
-									
+
 							fi 
 					fi
-					
+
 					if [[ $mn_status_exitcode != 0 ]]  || [[ $mn_status_exitcode2 != 0 ]]
 						then
 											if [[ $offlinerepairall == "no" ]] || [[ $offlinerepairall == 0 ]]
@@ -1400,7 +1424,7 @@ case $start in
 															checkyesno $offlinerepairall
 													fi
 											fi
-											
+
 											if [[ $updateallnodes != "yes" ]]
 												then
 #													echo -e "${YELLOW}Do you wish to chain repair this node?${NC}"
@@ -1521,6 +1545,11 @@ case $start in
 
 		done
 
+		if [[ $foundone == 0 ]]
+			then
+				echo -e "${CYAN}Found no SCC nodes${NC}"
+		fi
+
 		exit
 
 	;;
@@ -1533,6 +1562,14 @@ case $start in
 		offlinerepairall=0
 		updateallnodes=0
 		blockcompare=0
+
+		if [[ $blockcompare == 0 ]]
+			then
+				echo -e ""
+				echo -e "${YELLOW}Compare how many block difference count, enter a number${NC}"
+				read blockcompare
+				echo -e ""
+		fi
 
 		for i in $(ls /home/); do
 
@@ -1555,14 +1592,6 @@ case $start in
 					nodeblock=$($i getblockcount)
 					nodestatus=$?
 					blockcount=($currentblock - $nodeblock)
-
-					if [[ $blockcompare == 0 ]]
-						then
-							echo -e ""
-							echo -e "${YELLOW}Compare how many block difference count, enter a number${NC}"
-							read blockcompare
-							echo -e ""
-					fi
 
 					if [[ $nodestatus == 0 ]]
 						then
@@ -1612,6 +1641,7 @@ case $start in
 													echo -e "${YELLOW}Do you wish to use offline bootstrap for all repairs?"
 													echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 													read offlinerepairall
+													checkyesno $offlinerepairall
 											fi
 
 											if [[ $updateallnodes != "yes" ]]
@@ -1619,6 +1649,7 @@ case $start in
 													echo -e "${YELLOW}Do you wish to chain repair this node?${NC}"
 													echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 													read repairnode
+													checkyesno $repairnode
 													echo -e ""
 
 													if [[ $repairnode == "yes" ]]
@@ -1626,6 +1657,7 @@ case $start in
 															echo -e "${YELLOW}Do you wish to repair all nodes?${NC}"
 															echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 															read updateallnodes
+															checkyesno $updateallnodes
 															echo -e ""
 													fi
 											fi
@@ -1657,6 +1689,7 @@ case $start in
 									echo -e "${YELLOW}Do you wish to update the offline chain file first?"
 									echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 									read updatechainfile
+									checkyesno $updatechainfile
 
 									if [[ $updatechainfile == "yes" ]]
 										then
@@ -1673,6 +1706,7 @@ case $start in
 											echo -e "${YELLOW}Do you wish to use offline bootstrap for all repairs?"
 											echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 											read offlinerepairall
+											checkyesno $offlinerepairall
 									fi
 
 									if [[ $updateallnodes != "yes" ]]
@@ -1680,6 +1714,7 @@ case $start in
 											echo -e "${YELLOW}Do you wish to chain repair this node?${NC}"
 											echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 											read repairnode
+											checkyesno $repairnode
 											echo -e ""
 
 											if [[ $repairnode == "yes" ]]
@@ -1687,6 +1722,7 @@ case $start in
 													echo -e "${YELLOW}Do you wish to repair all nodes?${NC}"
 													echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 													read updateallnodes
+													checkyesno $updateallnodes
 													echo -e ""
 											fi
 									fi
@@ -1740,7 +1776,7 @@ case $start in
 	91)	echo -e "${YELLOW}Beginning Optional Sleep delay install/update tool${NC}"
 
 		sleeprandomfilecheck
-			
+
 		echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} MN service files${NC}"
 
 		foundone=0
@@ -1775,7 +1811,7 @@ case $start in
 
 		if [[ $foundone == 0 ]]
 			then
-				echo -e "${CYAN}Found no SCC node files${NC}"
+				echo -e "${CYAN}Found no SCC nodes${NC}"
 		fi
 
 		exit
@@ -1808,7 +1844,7 @@ case $start in
 
 		if [[ $foundone == 0 ]]
 			then
-				echo -e "${CYAN}Found no SCC node files${NC}"
+				echo -e "${CYAN}Found no SCC nodes${NC}"
 		fi
 
 		exit
@@ -1818,7 +1854,7 @@ case $start in
 	99)	echo -e "${MAGENTA}Beginning Update Checker Tool${NC}"
 
 		echo -e ""
-			
+
 		sccmultitool_update=$(curl https://raw.githubusercontent.com/stakecube/SCC-Multitool/master/sccmultitool.sh)
 
 		echo -e ""
@@ -1836,7 +1872,7 @@ case $start in
 								echo -e "${GREEN}SCCMultitool${NC} updated to the lastest version"
 								echo -e ""
 						fi
-			
+
 						echo -e ""
 					else
 						echo -e "${GREEN}SCCMultitool${NC} is already updated to the lastest version"
