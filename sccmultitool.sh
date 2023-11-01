@@ -13,6 +13,16 @@ rpcport=39999
 discord='https://discord.gg/xxjZzJE'
 
 #pre-setup checks and dependencies installs
+checkforrunningapt=$(ps -e | grep apt)
+
+if [[ $checkforrunningapt == "" ]]
+        then
+                echo -e "Apt not currently running"
+        else
+                echo -e "Apt is already running, please stop apt or reboot the system"
+                exit
+fi
+
 echo -e "Checking/installing/updating other script dependency's"
 apt -y -qq install curl zip unzip nano ufw software-properties-common pwgen p7zip-full p7zip-rar
 
