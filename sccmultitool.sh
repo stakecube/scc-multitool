@@ -87,7 +87,7 @@ echo -e "${YELLOW}6  - Remove MasterNode"
 echo -e "${YELLOW}7  - Remove Multiple Masternodes"
 echo -e "${YELLOW}8  - Masternode install"
 echo -e "${YELLOW}9  - Masternode install with optional sleep delay function"
-echo -e "${YELLOW}10 - Install New Node with manually specified IPv6 Address"
+echo -e "${YELLOW}10 - Install New Node with manually specified IPv4/IPv6 Address"
 echo -e "${YELLOW}11 - Download/Update StakeCubeCoin local bootstrap file from stakecube"
 echo -e "${YELLOW}12 - Make/Update your StakeCubeCoin local bootstrap file from an existing SCC node"
 echo -e "${YELLOW}13 - Chain/PoSe maintenance tool (single ${ticker} node)"
@@ -319,17 +319,6 @@ function chain_repair() {
 					echo -e ""
 					echo -e "${CYAN}Continuing with repair of node${NC}"
 					echo -e ""
-					echo -e "${YELLOW}Do you wish to still chain repair?"
-					echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
-					read checkchainrepair1
-
-					checkyesno $checkchainrepair1
-
-					if [[ $checkchainrepair1 == "no" ]]
-						then
-							exit
-					fi
-
 			fi
 		else
 			echo -e "${RED}Something is wrong with ${CYAN}$alias${NC}"
@@ -429,6 +418,8 @@ function chain_repair() {
 	echo -e "${YELLOW}If $alias showing POSE banned you will need to run the protx update command to unban${NC}"
 	echo -e "${YELLOW}Below is an example of the protx update command to use in your main wallets debug console${NC}"
 	echo -e "${YELLOW}protx update_service proTxHash ipAndPort operatorKey (operatorPayoutAddress feeSourceAddress)${NC}"
+	echo -e ""
+	echo -e "${YELLOW}Example: protx update_service proTxHash (127.0.0.1:40000 or [2001:2000:2000:2000:0000:0000:0000:0052]:40000) (blsprivatekey) '""' (feeSourceAddress)${NC}"
 	echo -e "${CYAN}Chain repair tool finished${NC}"
 
 }
@@ -1160,17 +1151,19 @@ case $start in
 
 	10) echo -e "${YELLOW}Beginning manual ip node install${NC}"
 		echo -e ""
-		echo -e "${YELLOW}Please specify a valid IPv6 address${NC}"
+		echo -e "${YELLOW}Please specify a valid IP address${NC}"
 		read manualipv6addr
 
 		echo -e ""
-		echo -e "${MAGENTA}Testing ipv6 address${NC}"
+		echo -e "${MAGENTA}Testing ip address${NC}"
+		echo -e "${MAGENTA}Pinging Google${NC}"
 
 		testipv6=$(ping google.com -c 5 -W 2 -I $manualipv6addr)
 		testipv6status=$?
 
 		if [[ $testipv6status == 0 ]]
 			then
+				echo -e "${CYAN}Passed${NC}"
 				echo -e ""
 				echo -e "${YELLOW}Do you wish to enable sleep delay?${NC}"
 				echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
@@ -1407,7 +1400,7 @@ case $start in
 									echo -e ""
 									mn_status_exitcode=0
 									mn_status=0
-
+									mn_status_exitcode2=0
 							fi 
 					fi
 
