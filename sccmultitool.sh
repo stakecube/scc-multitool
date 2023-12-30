@@ -1,12 +1,12 @@
 #!/bin/bash
 #Coin info
-version="3.4.2.11"
+version="3.4.3.2"
 coinname=stakecubecoin
 coinnamed=sccd
 coinnamecli=scc-cli
 ticker=SCC
 coindir=scc
-binaries="https://github.com/stakecube/StakeCubeCoin/releases/download/v3.4.2.11/scc-3.4.2.11-linux-nodes-u18.zip"
+binaries="https://github.com/stakecube/StakeCubeCoin/releases/download/v3.4.3.2/scc-3.4.3.2-linux-nodes.zip"
 snapshot='https://stakecubecoin.net/bootstrap.zip'
 port=40000
 rpcport=39999
@@ -124,12 +124,6 @@ read -p "> " start
 echo -e ""
 
 
-
-#force script update if only enter is pressed
-if [[ $start == "" ]]
-	then
-		start=99
-fi
 
 function displaypause() {
 
