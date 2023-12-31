@@ -146,11 +146,11 @@ function displaypause() {
 function checkprocess() {
 
 	local processname=$1
-	
+
 	processidentoutput=$(ps -U $processname -jh)
 	processident=$(echo $processidentoutput | grep -c $processname -)
 	processidentstatus=$?
-					
+
 #	echo -e ""
 #	echo -e "$processidentoutput"
 #	echo -e "$processident"
@@ -221,7 +221,7 @@ function debugmodeonoffsub() {
 				echo -e ""
 				echo -e "${YELLOW}Enabling debugging on node ${CYAN}$i${NC}"
 				sed -i 's/debug=0/debug=1/gi' /home/$alias/.scc/stakecubecoin.conf
-							
+
 				echo -e ""
 				echo -e "${YELLOW}Restarting node and pausing 120 seconds${NC}"
 				systemctl restart $alias --no-block
@@ -234,7 +234,7 @@ function debugmodeonoffsub() {
 				echo -e ""
 				echo -e "${YELLOW}Disabling debugging on node ${CYAN}$i${NC}"
 				sed -i 's/debug=1/debug=0/gi' /home/$alias/.scc/stakecubecoin.conf
-							
+
 				echo -e ""
 				echo -e "${YELLOW}Restarting node and pausing 120 seconds${NC}"
 				systemctl restart $alias --no-block
@@ -251,7 +251,7 @@ function debugmodeonoff() {
 		local alias=$1
 		local onoff=$2
 		local errorpid=0
-		
+
 		foundone=0
 
 		echo -e ""
@@ -277,7 +277,7 @@ function debugmodeonoff() {
 				echo -e "found ${CYAN}$alias${NC}..."
 
 				debugmodeonoffsub $alias $onoff $debugcmd $debugcount $grepcheckstatus
-				
+
 				return
 		fi
 
@@ -305,11 +305,11 @@ function debugmodeonoff() {
 					if ! checkprocess $i
 						then
 							errorpid=1
-							
+
 							echo -e ""
 							echo -e "${RED}ERROR ${YELLOW}process for ${CYAN}$i${YELLOW} not found${NC}"
 					fi
-					
+
 					if [[ $errorpid == 0 ]]
 						then
 							if [[ $debugcmd == "" ]]
@@ -317,7 +317,7 @@ function debugmodeonoff() {
 									debugcmd=1
 									debugcount=0
 							fi
-							
+
 							debugmodeonoffsub $i $onoff $debugcmd $debugcount $grepcheckstatus
 					fi
 
@@ -1158,6 +1158,7 @@ echo -e "${YELLOW}91 - Check and install/update service files for optional sleep
 echo -e "${YELLOW}92 - Output all ${ticker} nodes IP and Private Keys${NC}"
 echo -e "${YELLOW}93 - Change Debug mode for single ${ticker} node${NC}"
 echo -e "${YELLOW}94 - Change Debug mode for all ${ticker} nodes${NC}"
+echo -e "${YELLOW}95 - Check current debug status for all ${ticker} nodes${NC}"
 echo -e "${YELLOW}${NC}"
 echo -e "${YELLOW}98 - Enable IPv6 ${MAGENTA}Contabo VPS ONLY${NC}"
 echo -e "${YELLOW}99 - Full chain repair by not using a bootstrap(not recommended)${NC}"
@@ -1317,6 +1318,81 @@ case $maintstart in
 
 	;;
 
+	95)	echo -e "${YELLOW}Beginning check debug status tool on all ${ticker} nodes${NC}"
+
+		for i in $(ls /home/); do
+
+			debugcount=""
+			debugcmd=""
+
+			echo -e ""
+
+			if [[ $i == *scc* ]]
+				then
+					foundone=1
+					errorpid=0
+					grepcheckstatus=2
+
+					echo -e "found ${CYAN}$i${NC}..."
+
+					debugcount=$(grep -cFi 'debug' /home/$i/.scc/stakecubecoin.conf)
+					debugcmd=$(grep -ix 'debug=[0-1]' /home/$i/.scc/stakecubecoin.conf)
+					grepcheckstatus=$?
+
+#					echo -e ""
+#					echo -e "$countdebug"
+#					echo -e "$debugcmd"
+#					echo -e "$grepcheckstatus"
+
+					if ! checkprocess $i
+						then
+							errorpid=1
+
+							echo -e ""
+							echo -e "${RED}ERROR ${YELLOW}process for ${CYAN}$i${YELLOW} not found${NC}"
+					fi
+
+					if [[ $errorpid == 0 ]]
+						then
+							if [[ $debugcmd == "" ]]
+								then
+									debugcmd=1
+									debugcount=0
+							fi
+
+					fi
+			fi
+
+			if [[ ${debugcmd,,} == "debug=0" ]]
+				then
+					echo -e ""
+					echo -e "${YELLOW}Debugging is disabled on node ${CYAN}$i${NC}"
+			fi
+
+			if [[ ${debugcmd,,} == "debug=1" ]]
+				then
+					echo -e ""
+					echo -e "${YELLOW}Debugging is enabled on node ${CYAN}$i${NC}"
+			fi
+
+			if [[ ${debugcmd,,} == 1 || $debugcount == 0 ]]
+				then
+					echo -e ""
+					echo -e "${YELLOW}Debugging command not found in config file on node ${CYAN}$i${NC}"
+			fi
+
+			if [[ $foundone == 0 ]]
+				then
+					echo -e ""
+					echo -e "${CYAN}No $ticker nodes found${NC}"
+			fi
+
+		done
+
+		exit
+
+	;;
+
 	98)	echo -e "Starting IPv6 setup tool..."
 
 		ipv6_setup
@@ -1365,7 +1441,6 @@ case $maintstart in
 	;;
 
 
-	
 esac
 
 }
@@ -1610,9 +1685,8 @@ case $start in
 	13)	echo -e "Beginning Explorer comparison tool"
 
 		foundone=0
-		
-		for i in $(ls /home/); do
 
+		for i in $(ls /home/); do
 
 			if [[ $i == *scc* ]]
 				then
@@ -1623,7 +1697,7 @@ case $start in
 
 					foundone=1
 					runnode=0
-					
+
 					if ! checkprocess $i
 						then
 							runnode=1
@@ -1692,11 +1766,11 @@ case $start in
 					processtestresult=""
 
 					echo -e "found ${CYAN}$i${NC}..."
-					
+
 					updatechainfilelocal=""
 					processtestresult=""
 					mn_status=""
-					
+
 					if ! checkprocess $i
 						then
 							echo -e ""
@@ -2181,7 +2255,7 @@ case $start in
 		exit
 
 	;;
-	
+
 	99)	echo -e "${MAGENTA}Beginning Update Checker Tool${NC}"
 
 		echo -e ""
