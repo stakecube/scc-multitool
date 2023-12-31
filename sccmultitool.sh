@@ -176,20 +176,19 @@ function debugmodeonoffsub() {
 		local debugcount=$4
 		local grepcheckstatus=$5
 
-
 		if [[ $grepcheckstatus == 1 && $debugcount == 0 && $onoff == 1 ]]
 			then
 				echo -e ""
 				echo -e "${YELLOW}Debug line not found, inserting turned on${NC}"
 
-				echo 'debug=1' >> /home/$i/.scc/stakecubecoin.conf
+				echo 'debug=1' >> /home/$alias/.scc/stakecubecoin.conf
 			else
 				if [[ $grepcheckstatus == 1 && $debugcount == 0 && $onoff == 0 ]]
 					then
 						echo -e ""
 						echo -e "${YELLOW}Debug line not found, inserting turned off${NC}"
 
-						echo 'debug=0' >> /home/$i/.scc/stakecubecoin.conf
+						echo 'debug=0' >> /home/$alias/.scc/stakecubecoin.conf
 				fi
 		fi
 
@@ -197,36 +196,40 @@ function debugmodeonoffsub() {
 			then
 				echo -e ""
 				echo -e "${YELLOW}Debugging already disabled on node ${CYAN}$i${NC}"
+				return
 		fi
 
 		if [[ ${debugcmd,,} == "debug=1" && $onoff == "1" ]]
 			then
 				echo -e ""
 				echo -e "${YELLOW}Debugging already enabled on node ${CYAN}$i${NC}"
+				return
 		fi
 
 		if [[ ${debugcmd,,} == "debug=0" && $onoff == "1" ]]
 			then
 				echo -e ""
 				echo -e "${YELLOW}Enabling debugging on node ${CYAN}$i${NC}"
-				sed -i 's/debug=0/debug=1/gi' /home/$i/.scc/stakecubecoin.conf
+				sed -i 's/debug=0/debug=1/gi' /home/$alias/.scc/stakecubecoin.conf
 							
 				echo -e ""
 				echo -e "${YELLOW}Restarting node and pausing 120 seconds${NC}"
-				systemctl restart $i --no-block
-				displaypause 10
+				systemctl restart $alias --no-block
+				displaypause 120
+				return
 		fi
 
 		if [[ ${debugcmd,,} == "debug=1" && $onoff == "0" ]]
 			then
 				echo -e ""
 				echo -e "${YELLOW}Disabling debugging on node ${CYAN}$i${NC}"
-				sed -i 's/debug=1/debug=0/gi' /home/$i/.scc/stakecubecoin.conf
+				sed -i 's/debug=1/debug=0/gi' /home/$alias/.scc/stakecubecoin.conf
 							
 				echo -e ""
 				echo -e "${YELLOW}Restarting node and pausing 120 seconds${NC}"
-				systemctl restart $i --no-block
-				displaypause 10
+				systemctl restart $alias --no-block
+				displaypause 120
+				return
 		fi
 
 		return
@@ -235,18 +238,17 @@ function debugmodeonoffsub() {
 
 function debugmodeonoff() {
 
-		local alias=""
+		local alias=$1
 		local onoff=$2
 		local errorpid=0
 		
-		alias=$1
 		foundone=0
 
 		echo -e ""
 		echo -e "${YELLOW}Checking for $ticker MN's${NC}"
 		echo -e ""
 
-		if [[ $alias != "" ]]
+		if [[ $alias != 0 ]]
 			then
 				if ! checkprocess $alias
 					then
@@ -261,6 +263,8 @@ function debugmodeonoff() {
 				debugcount=$(grep -cFi 'debug' /home/$alias/.scc/stakecubecoin.conf)
 				debugcmd=$(grep -ix 'debug=[0-1]' /home/$alias/.scc/stakecubecoin.conf)
 				grepcheckstatus=$?
+
+				echo -e "found ${CYAN}$alias${NC}..."
 
 				debugmodeonoffsub $alias $onoff $debugcmd $debugcount $grepcheckstatus
 				
@@ -294,15 +298,12 @@ function debugmodeonoff() {
 							
 							echo -e ""
 							echo -e "${RED}ERROR ${YELLOW}process for ${CYAN}$i${YELLOW} not found${NC}"
-
-							return
 					fi
 					
 					if [[ $errorpid == 0 ]]
 						then
 
 							debugmodeonoffsub $i $onoff $debugcmd $debugcount $grepcheckstatus
-
 					fi
 
 			fi
@@ -1257,17 +1258,6 @@ case $maintstart in
 		checkaliasvalidity $alias
 
 		echo -e ""
-
-		echo -e "${YELLOW}Stopping node ${CYAN}$alias${NC}"
-
-		systemctl stop $alias.service
-
-		echo -e ""
-		echo -e "${YELLOW}Pausing for 30 seconds${NC}"
-
-		displaypause 30
-
-		echo -e ""
 		echo -e "${YELLOW}Enable Debug Mode on Node?${NC}"
 		echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 		read onoff
@@ -1275,8 +1265,15 @@ case $maintstart in
 
 		echo -e ""
 
+		if [[ $onoff == "yes" ]]
+			then
+				onoff=1
+			else
+				onoff=0
+		fi
+
 		debugmodeonoff $alias $onoff
-		
+
 		exit
 
 	;;
@@ -1291,7 +1288,14 @@ case $maintstart in
 
 		echo -e ""
 
-		alias=""
+		if [[ $onoff == "yes" ]]
+			then
+				onoff=1
+			else
+				onoff=0
+		fi
+
+		alias=0
 		debugmodeonoff $alias $onoff
 
 		exit
