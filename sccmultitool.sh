@@ -62,6 +62,8 @@ if [[ $(cmp <(echo "$sccmultitool_update") ~/sccmultitool.sh) ]] && [[ $(diff <(
 		updatesccmultitool=0
 fi
 
+function displayname() {
+
 cat << "EOF" 
    _____ _        _         _____      _
   / ____| |      | |       / ____|    | |
@@ -71,6 +73,10 @@ cat << "EOF"
  |_____/ \__\__,_|_|\_\___|\_____\__,_|_.__/ \___|
 EOF
 
+}
+
+displayname
+
 #Tool menu
 echo -e ""
 echo -e "${UNDERLINE}${CYAN}Welcome to the StakeCube Multitools ${version}${NC}"
@@ -78,28 +84,24 @@ echo -e "${UNDERLINE}${CYAN}Welcome to the StakeCube Multitools ${version}${NC}"
 #echo -e '\e[4mWelcome to the StakeCube Multitools '${version}' \e[24m'
 
 echo -e "${YELLOW}Please enter a number from the list and press [ENTER] to start tool"
-echo -e "${YELLOW}1  - Newserver 8GB swap + IPv6 setup. REQUIRES RESTART ${MAGENTA}Contabo VPS${NC}"
-echo -e "${YELLOW}2  - Enable IPv6 ${MAGENTA}Contabo VPS${NC}"
-echo -e "${YELLOW}3  - Setup/Resize/Delete swap space with X MB swap space"
-echo -e "${YELLOW}4  - Wallet update (all ${ticker} nodes)"
-echo -e "${YELLOW}5  - Masternode stop/start/restart (stop/start/restart all ${ticker} nodes)"
-echo -e "${YELLOW}6  - Remove MasterNode"
-echo -e "${YELLOW}7  - Remove Multiple Masternodes"
-echo -e "${YELLOW}8  - Masternode install"
-echo -e "${YELLOW}9  - Masternode install with optional sleep delay function"
-echo -e "${YELLOW}10 - Install New Node with manually specified IPv4/IPv6 Address"
-echo -e "${YELLOW}11 - Download/Update StakeCubeCoin local bootstrap file from stakecube"
-echo -e "${YELLOW}12 - Make/Update your StakeCubeCoin local bootstrap file from an existing SCC node"
-echo -e "${YELLOW}13 - Chain/PoSe maintenance tool (single ${ticker} node)"
-echo -e "${YELLOW}14 - Full chain repair by not using bootstrap"
-echo -e "${YELLOW}15 - Check block count status against explorer"
-echo -e "${YELLOW}16 - Check MN health status and optional repair (all ${ticker} nodes)"
-echo -e "${YELLOW}17 - Check block count and optional chain repair (all ${ticker} nodes)"
-echo -e "${YELLOW}18 - Check status of disk space and memory usage"
+echo -e "${YELLOW}1  - Newserver 8GB swap + IPv6 setup. REQUIRES RESTART ${MAGENTA}Contabo VPS only${NC}"
+echo -e "${YELLOW}2  - Setup/Resize/Delete swap space with X MB swap space"
+echo -e "${YELLOW}3  - Wallet update (all ${ticker} nodes)"
+echo -e "${YELLOW}4  - Masternode stop/start/restart (stop/start/restart all ${ticker} nodes)"
+echo -e "${YELLOW}5  - Remove MasterNode"
+echo -e "${YELLOW}6  - Remove Multiple Masternodes"
+echo -e "${YELLOW}7  - Masternode install"
+echo -e "${YELLOW}8  - Masternode install with optional sleep delay function"
+echo -e "${YELLOW}9  - Install New Node with manually specified IPv4/IPv6 Address"
+echo -e "${YELLOW}10 - Download/Update StakeCubeCoin local bootstrap file from stakecube"
+echo -e "${YELLOW}11 - Make/Update your StakeCubeCoin local bootstrap file from an existing SCC node"
+echo -e "${YELLOW}12 - Chain/PoSe maintenance tool (single ${ticker} node)"
+echo -e "${YELLOW}13 - Check block count status against explorer (all ${ticker} nodes)"
+echo -e "${YELLOW}14 - Check MN health status and optional repair (all ${ticker} nodes)"
+echo -e "${YELLOW}15 - Check block count and optional chain repair (all ${ticker} nodes)"
+echo -e "${YELLOW}16 - Check status of disk space and memory usage"
 echo -e ""
-echo -e "${YELLOW}91 - Check and install/update service files for optional sleep delay"
-echo -e "${YELLOW}92 - Output all nodes IP and Private Keys${NC}"
-echo -e ""
+echo -e "${YELLOW}98 - Maintenance Sub-Menu - extra functions"
 echo -e "${YELLOW}99 - Check for updated script from GitHub${NC}"
 echo -e ""
 echo -e "${YELLOW}0  - Exit"
@@ -123,8 +125,6 @@ fi
 read -p "> " start
 echo -e ""
 
-
-
 function displaypause() {
 
         local delaycount=$1
@@ -143,7 +143,179 @@ function displaypause() {
 
 }
 
+function checkprocess() {
 
+	local processname=$1
+	
+	processidentoutput=$(ps -U $processname -jh)
+	processident=$(echo $processidentoutput | grep -c $processname -)
+	processidentstatus=$?
+					
+#	echo -e ""
+#	echo -e "$processidentoutput"
+#	echo -e "$processident"
+#	echo -e "$processidentstatus"
+
+	if [[ $processident == 0 ]]
+		then
+			return 1
+		else
+			return 0
+	fi
+
+	#always return false if it gets this far
+	return 1
+
+}
+
+function debugmodeonoffsub() {
+
+		local alias=$1
+		local onoff=$2
+		local debugcmd=$3
+		local debugcount=$4
+		local grepcheckstatus=$5
+
+
+		if [[ $grepcheckstatus == 1 && $debugcount == 0 && $onoff == 1 ]]
+			then
+				echo -e ""
+				echo -e "${YELLOW}Debug line not found, inserting turned on${NC}"
+
+				echo 'debug=1' >> /home/$i/.scc/stakecubecoin.conf
+			else
+				if [[ $grepcheckstatus == 1 && $debugcount == 0 && $onoff == 0 ]]
+					then
+						echo -e ""
+						echo -e "${YELLOW}Debug line not found, inserting turned off${NC}"
+
+						echo 'debug=0' >> /home/$i/.scc/stakecubecoin.conf
+				fi
+		fi
+
+		if [[ ${debugcmd,,} == "debug=0" && $onoff == "0" ]]
+			then
+				echo -e ""
+				echo -e "${YELLOW}Debugging already disabled on node ${CYAN}$i${NC}"
+		fi
+
+		if [[ ${debugcmd,,} == "debug=1" && $onoff == "1" ]]
+			then
+				echo -e ""
+				echo -e "${YELLOW}Debugging already enabled on node ${CYAN}$i${NC}"
+		fi
+
+		if [[ ${debugcmd,,} == "debug=0" && $onoff == "1" ]]
+			then
+				echo -e ""
+				echo -e "${YELLOW}Enabling debugging on node ${CYAN}$i${NC}"
+				sed -i 's/debug=0/debug=1/gi' /home/$i/.scc/stakecubecoin.conf
+							
+				echo -e ""
+				echo -e "${YELLOW}Restarting node and pausing 120 seconds${NC}"
+				systemctl restart $i --no-block
+				displaypause 10
+		fi
+
+		if [[ ${debugcmd,,} == "debug=1" && $onoff == "0" ]]
+			then
+				echo -e ""
+				echo -e "${YELLOW}Disabling debugging on node ${CYAN}$i${NC}"
+				sed -i 's/debug=1/debug=0/gi' /home/$i/.scc/stakecubecoin.conf
+							
+				echo -e ""
+				echo -e "${YELLOW}Restarting node and pausing 120 seconds${NC}"
+				systemctl restart $i --no-block
+				displaypause 10
+		fi
+
+		return
+
+}
+
+function debugmodeonoff() {
+
+		local alias=""
+		local onoff=$2
+		local errorpid=0
+		
+		alias=$1
+		foundone=0
+
+		echo -e ""
+		echo -e "${YELLOW}Checking for $ticker MN's${NC}"
+		echo -e ""
+
+		if [[ $alias != "" ]]
+			then
+				if ! checkprocess $alias
+					then
+						errorpid=1
+
+						echo -e ""
+						echo -e "${RED}ERROR ${YELLOW}process for ${CYAN}$alias${YELLOW} not found${NC}"
+
+						return
+				fi
+
+				debugcount=$(grep -cFi 'debug' /home/$alias/.scc/stakecubecoin.conf)
+				debugcmd=$(grep -ix 'debug=[0-1]' /home/$alias/.scc/stakecubecoin.conf)
+				grepcheckstatus=$?
+
+				debugmodeonoffsub $alias $onoff $debugcmd $debugcount $grepcheckstatus
+				
+				return
+		fi
+
+		for i in $(ls /home/); do
+
+			echo -e ""
+
+			if [[ $i == *scc* ]]
+				then
+					foundone=1
+					errorpid=0
+					grepcheckstatus=""
+
+					echo -e "found ${CYAN}$i${NC}..."
+
+					debugcount=$(grep -cFi 'debug' /home/$i/.scc/stakecubecoin.conf)
+					debugcmd=$(grep -ix 'debug=[0-1]' /home/$i/.scc/stakecubecoin.conf)
+					grepcheckstatus=$?
+
+#					echo -e ""
+#					echo -e "$countdebug"
+#					echo -e "$debugcmd"
+#					echo -e "$grepcheckstatus"
+
+					if ! checkprocess $i
+						then
+							errorpid=1
+							
+							echo -e ""
+							echo -e "${RED}ERROR ${YELLOW}process for ${CYAN}$i${YELLOW} not found${NC}"
+
+							return
+					fi
+					
+					if [[ $errorpid == 0 ]]
+						then
+
+							debugmodeonoffsub $i $onoff $debugcmd $debugcount $grepcheckstatus
+
+					fi
+
+			fi
+
+			if [[ $foundone == 0 ]]
+				then
+					echo -e ""
+					echo -e "${CYAN}No $ticker nodes found${NC}"
+			fi
+
+		done
+
+}
 
 function is_number() {
 
@@ -232,7 +404,7 @@ function checkaliasvalidity() {
 			echo -e "${RED}Error node not found${NC}"
 			echo -e ""
 
-		exit
+			exit
 	fi
 
 }
@@ -240,8 +412,6 @@ function checkaliasvalidity() {
 function sleeprandomfilecheck() {
 
 			local sleepnumberfile=/usr/local/bin/sleeprandom
-
-			cd /etc/systemd/system
 
 			if test -e "$sleepnumberfile"
 				then
@@ -953,6 +1123,233 @@ function mn_uninstall() {
 
 }
 
+function maintmenu() {
+
+
+clear
+
+displayname
+
+#Tool maintenance menu
+echo -e ""
+echo -e "${UNDERLINE}${CYAN}Welcome to the StakeCube Multitools ${version}${NC}"
+echo -e ""
+echo -e "${YELLOW}Maintenance menu${NC}"
+echo -e ""
+echo -e "${YELLOW}Please enter a number from the list and press [ENTER] to start maintenance tool"
+echo -e ""
+echo -e "${YELLOW}91 - Check and install/update service files for optional sleep delay${NC}"
+echo -e "${YELLOW}92 - Output all ${ticker} nodes IP and Private Keys${NC}"
+echo -e "${YELLOW}93 - Change Debug mode for single ${ticker} node${NC}"
+echo -e "${YELLOW}94 - Change Debug mode for all ${ticker} nodes${NC}"
+echo -e "${YELLOW}${NC}"
+echo -e "${YELLOW}98 - Enable IPv6 ${MAGENTA}Contabo VPS ONLY${NC}"
+echo -e "${YELLOW}99 - Full chain repair by not using a bootstrap(not recommended)${NC}"
+echo -e ""
+echo -e "${YELLOW}0  - Exit"
+echo -e ""
+echo -e "${MAGENTA}This script can now use an optional sleep delay of up to 5 minutes per node on startup${NC}"
+echo -e "${MAGENTA}This helps to prevent the VPS from being overloaded upon reboot when there are many nodes installed${NC}"
+echo -e "${MAGENTA}This can make the install/start/restart/repair node(s) look like it has stopped working${NC}"
+echo -e "${MAGENTA}This is just a side effect of the delay only(if it occurs)${NC}"
+echo -e ""
+echo -e "${YELLOW}This is an ${RED}OPTIONAL${YELLOW} feature that you can use by selecting appropriate options${NC}"
+echo -e "${YELLOW}Please run the check install/update service files before installing nodes${NC}"
+echo -e "${RED}only IF${YELLOW} you want to use the sleep delay functionality, it only needs to be ran once${NC}"
+echo -e "${NC}"
+
+read -p "> " maintstart
+echo -e ""
+
+
+case $maintstart in
+
+	91)	echo -e "${YELLOW}Beginning Optional Sleep delay install/update tool${NC}"
+
+		sleeprandomfilecheck
+
+		echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} MN service files${NC}"
+
+		foundone=0
+
+		for i in $(ls /etc/systemd/system/)
+			do
+				if [[ $i == *scc* ]]
+					then
+						foundone=1
+
+						echo -e "${YELLOW}found ${CYAN}$i${YELLOW}...${NC}"
+						echo -e ""
+						echo -e "${CyAN}Checking file ${MAGENTA}$i${NC}"
+
+						grepkcheck=$(grep -Fxq 'ExecStartPre=/usr/local/bin/sleeprandom' /etc/systemd/system/$i)
+						grepcheckstatus=$?
+
+						if [[ $grepcheckstatus == 0 ]]
+							then
+								echo -e "${CYAN}$i already updated${NC}"
+							else
+								sed -i '/^ExecStart=.*/i ExecStartPre=/usr/local/bin/sleeprandom' /etc/systemd/system/$i
+								sed -i 's/TimeoutStartSec=.*/TimeoutStartSec=3000s/g' /etc/systemd/system/$i
+								echo -e "${CYAN}Updated ${MAGENTA}$i${NC}"
+								echo -e ""
+								echo -e "${YELLOW}Reloading system config daemon files${NC}"
+								echo -e ""
+								systemctl daemon-reload
+						fi
+				fi
+			done
+
+		if [[ $foundone == 0 ]]
+			then
+				echo -e "${CYAN}Found no SCC nodes${NC}"
+		fi
+
+		exit
+
+	;;
+
+	92)	echo -e "${YELLOW}Beginning Private Keys and IP for all nodes${NC}"
+
+		echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} IP/MN private keys${NC}"
+
+		foundone=0
+
+		for i in $(ls /home/)
+			do
+				if [[ $i == *scc* ]]
+					then
+
+						foundone=1
+
+						privkey=$(grep -e 'masternodeblsprivkey' /home/$i/.scc/stakecubecoin.conf | cut -d\= -f2)
+						grepcheckstatus=$?
+						ip=$(grep -e 'bind' /home/$i/.scc/stakecubecoin.conf | cut -d\= -f2)
+
+						echo -e "${YELLOW}found ${CYAN}$i${YELLOW}...${NC}"
+						echo -e "${CYAN}IP: ${GREEN}$ip${NC}"
+						echo -e "${CYAN}Private Key:${MAGENTA}$privkey${NC}"
+						echo -e ""
+				fi
+			done
+
+		if [[ $foundone == 0 ]]
+			then
+				echo -e "${CYAN}Found no SCC nodes${NC}"
+		fi
+
+		exit
+
+	;;
+
+	93)	echo -e "${YELLOW}Beginning debug node tool - single node${NC}"
+
+		echo -e ""
+		echo -e "${YELLOW}Checking home directory for masternode alias's${NC}"
+		echo -e ""
+		ls /home
+		echo -e ""
+		echo -e "${YELLOW}Above are the alias names for the installed masternodes${NC}"
+		echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
+		echo -e ""
+		read alias
+
+		checkaliasvalidity $alias
+
+		echo -e ""
+
+		echo -e "${YELLOW}Stopping node ${CYAN}$alias${NC}"
+
+		systemctl stop $alias.service
+
+		echo -e ""
+		echo -e "${YELLOW}Pausing for 30 seconds${NC}"
+
+		displaypause 30
+
+		echo -e ""
+		echo -e "${YELLOW}Enable Debug Mode on Node?${NC}"
+		echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+		read onoff
+		checkyesno $onoff
+
+		echo -e ""
+
+		debugmodeonoff $alias $onoff
+		
+		exit
+
+	;;
+
+	94)	echo -e "${YELLOW}Beginning debug node tool - all nodes${NC}"
+
+		echo -e ""
+		echo -e "${YELLOW}Enable Debug Mode on Nodes?${NC}"
+		echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+		read onoff
+		checkyesno $onoff
+
+		echo -e ""
+
+		alias=""
+		debugmodeonoff $alias $onoff
+
+		exit
+
+	;;
+
+	98)	echo -e "Starting IPv6 setup tool..."
+
+		ipv6_setup
+
+		#Finish
+		echo -e "IPv6 setup complete"
+		exit
+
+	;;
+
+	99)	echo -e "${YELLOW}Starting full sync chain download repair tool${NC}"
+		echo -e ""
+		echo -e "${YELLOW}Checking home directory for masternode alias's${NC}"
+		echo -e ""
+		ls /home
+		echo -e ""
+		echo -e "${YELLOW}Above are the alias names for the installed masternodes${NC}"
+		echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
+		echo -e ""
+		read alias
+
+		checkaliasvalidity $alias
+
+		echo -e ""
+
+		echo -e "${YELLOW}Stopping node ${CYAN}$alias${NC}"
+
+		systemctl stop $alias.service
+
+		echo -e ""
+		echo -e "${YELLOW}Pausing for 30 seconds${NC}"
+
+		displaypause 30
+
+		cd /home/$alias
+		find /home/$alias/.${coindir}/ -name ".lock" -delete
+		find /home/$alias/.${coindir}/ -name ".walletlock" -delete
+		find /home/$alias/.${coindir}/* ! -name "wallet.dat" ! -name "*.conf" -delete
+
+		echo -e "${RED}Chain files are deleted, restarting node ${CYAN}$alias${NC}"
+
+		systemctl start --no-block $alias.service
+
+		exit
+
+	;;
+
+
+	
+esac
+
+}
 
 
 case $start in
@@ -985,17 +1382,7 @@ case $start in
 
     ;;
 
-	2)	echo -e "Starting IPv6 setup tool..."
-
-		ipv6_setup
-
-		#Finish
-		echo -e "IPv6 setup complete"
-		exit
-
-	;;
-
-	3)	echo -e "${YELLOW}Resizing Swap space to X MB swap size${NC}"
+	2)	echo -e "${YELLOW}Resizing Swap space to X MB swap size${NC}"
 		echo -e ""
 		echo -e "${MAGENTA}Make sure all nodes are stopped first${NC}"
 		echo -e "${MAGENTA}If not, please press control-c to cancel${NC}"
@@ -1010,7 +1397,7 @@ case $start in
 	;;
 
 
-    4)	echo -e "${YELLOW}Starting Wallet update tool for ${CYAN}All ${ticker}${YELLOW} nodes${NC}"
+    3)	echo -e "${YELLOW}Starting Wallet update tool for ${CYAN}All ${ticker}${YELLOW} nodes${NC}"
 		echo -e ""
 		cd /usr/local/bin
 		rm $coinnamecli $coinnamed
@@ -1048,7 +1435,7 @@ case $start in
 
 	;;
 
-	5)	echo -e "Starting stop/start tool..."
+	4)	echo -e "Starting stop/start tool..."
 		echo -e "Please enter ${CYAN}stop${NC} to stop all ${ticker} nodes"
 		echo -e "Please enter ${CYAN}start${NC} to start all ${ticker} nodes"
 		echo -e "Please enter ${CYAN}restart${NC} to restart all ${ticker} nodes"
@@ -1098,7 +1485,7 @@ case $start in
 
 	;;
 
-	6)	echo -e "${YELLOW}Starting Removal tool${NC}"
+	5)	echo -e "${YELLOW}Starting Removal tool${NC}"
 
 		mn_uninstall
 
@@ -1106,7 +1493,7 @@ case $start in
 
 	;;
 
-	7)	echo -e "${YELLOW}Beginning Multiple Nodes Uninstall Tool${NC}"
+	6)	echo -e "${YELLOW}Beginning Multiple Nodes Uninstall Tool${NC}"
 		echo -e ""
 		echo -e "${YELLOW}Press ${CYAN}Control-C${YELLOW} to abort at alias selection to quit${NC}"
 		echo -e ""
@@ -1126,7 +1513,7 @@ case $start in
 
 	;;
 
-	8)	echo -e "${YELLOW}Starting $ticker MasterNode install${NC}"
+	7)	echo -e "${YELLOW}Starting $ticker MasterNode install${NC}"
 
 		install_mn "no" "" "no"
 
@@ -1135,7 +1522,7 @@ case $start in
 	;;
 
 
-	9)	echo -e "${YELLOW}Starting $ticker MasterNode install with Sleep Delay functionality${NC}"
+	8)	echo -e "${YELLOW}Starting $ticker MasterNode install with Sleep Delay functionality${NC}"
 
 		install_mn "no" "" "yes"
 
@@ -1143,9 +1530,10 @@ case $start in
 
 	;;
 
-	10) echo -e "${YELLOW}Beginning manual ip node install${NC}"
+	9) echo -e "${YELLOW}Beginning manual ip node install${NC}"
 		echo -e ""
-		echo -e "${YELLOW}Please specify a valid IP address${NC}"
+		echo -e "${YELLOW}Please specify a valid IPv4 or IPv6 address${NC}"
+		echo -e "${YELLOW}In x.x.x.x or [x:x:x:x:x:x:x:x] format${NC}"
 		read manualipv6addr
 
 		echo -e ""
@@ -1178,21 +1566,21 @@ case $start in
 
 	;;
 
-	11)	echo -e "${CYAN}Downloading updated bootstrap for offline install/repair from StakeCube${NC}"
+	10)	echo -e "${CYAN}Downloading updated bootstrap for offline install/repair from StakeCube${NC}"
 		cd /root
 		wget -nv --show-progress ${snapshot} -O ${coinname}.zip
 		exit
 
 	;;
 
-	12)	offlinechainfilebuild
+	11)	offlinechainfilebuild
 
 		exit
 
 	;;
 
 
-	13)	echo -e "${YELLOW}Starting chain repair/PoSe maintenance tool${NC}"
+	12)	echo -e "${YELLOW}Starting chain repair/PoSe maintenance tool${NC}"
 
 		chain_repair ""
 
@@ -1200,59 +1588,43 @@ case $start in
 
 	;;
 
-	14)	echo -e "${YELLOW}Starting full sync chain download repair tool${NC}"
-		echo -e ""
-		echo -e "${YELLOW}Checking home directory for masternode alias's${NC}"
-		echo -e ""
-		ls /home
-		echo -e ""
-		echo -e "${YELLOW}Above are the alias names for the installed masternodes${NC}"
-		echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
-		echo -e ""
-		read alias
+	13)	echo -e "Beginning Explorer comparison tool"
 
-		checkaliasvalidity $alias
-
-		echo -e ""
-
-		echo -e "${YELLOW}Stopping node ${CYAN}$alias${NC}"
-
-		systemctl stop $alias.service
-
-		echo -e ""
-		echo -e "${YELLOW}Pausing for 30 seconds${NC}"
-
-		displaypause 30
-
-		cd /home/$alias
-		find /home/$alias/.${coindir}/ -name ".lock" -delete
-		find /home/$alias/.${coindir}/ -name ".walletlock" -delete
-		find /home/$alias/.${coindir}/* ! -name "wallet.dat" ! -name "*.conf" -delete
-
-		echo -e "${RED}Chain files are deleted, restarting node ${CYAN}$alias${NC}"
-
-		systemctl start --no-block $alias.service
-
-		exit
-
-	;;
-
-	15)	echo -e "Beginning Explorer comparison tool"
-
+		foundone=0
+		
 		for i in $(ls /home/); do
 
-			echo -e "${YELLOW}Checking for $ticker MN's${NC}"
-			echo -e "found ${CYAN}$i${NC}..."
-#			echo -e ""
 
 			if [[ $i == *scc* ]]
 				then
-					currentblock=$(curl -s https://www.coinexplorer.net/api/v1/SCC/getblockcount)
-					nodeblock=0
-					nodeblock=$($i getblockcount)
-					nodestatus=$?
 
-					if [[ $nodestatus == 0 ]]
+					echo -e "${YELLOW}Checking for $ticker MN's${NC}"
+					echo -e "found ${CYAN}$i${NC}..."
+#					echo -e ""
+
+					foundone=1
+					runnode=0
+					
+					if ! checkprocess $i
+						then
+							runnode=1
+							echo -e ""
+							echo -e "${RED}ERROR ${YELLOW}process for ${CYAN}$i${YELLOW} not found${NC}"
+						else
+							runnode=0
+					fi
+
+					if [[ $runnode == 0 ]]
+						then
+							currentblock=$(curl -s https://www.coinexplorer.net/api/v1/SCC/getblockcount)
+							nodeblock=0
+							nodeblock=$($i getblockcount)
+							nodestatus=$?
+						else
+							nodestation=1
+					fi
+
+					if [[ $nodestatus == 0 ]]  && [[ $runnode == 0 ]]
 						then
 
 							if [[ $currentblock == $nodeblock ]]
@@ -1265,18 +1637,21 @@ case $start in
 							echo -e "${RED}Something is wrong with ${CYAN}$i${NC}"
 					fi
 
-				else
-					echo -e "${RED}No $ticker MN's found to check${NC}"
 			fi
 
 			echo -e ""
 
 		done
 
+		if [[ $foundone == 0 ]]
+			then
+				echo -e "${CYAN}Found no $ticker nodes${NC}"
+		fi
+
 		exit
 	;;
 
-	16)	echo -e "Beginning Status Checks of Nodes"
+	14)	echo -e "Beginning Status Checks of Nodes"
 
 		foundone=0
 		updatechainfile=0
@@ -1295,14 +1670,33 @@ case $start in
 			if [[ $i == *scc* ]]
 				then
 					foundone=1
+					processtestresult=""
 
 					echo -e "found ${CYAN}$i${NC}..."
-
+					
 					updatechainfilelocal=""
+					processtestresult=""
 					mn_status=""
-					mn_status=$($i masternode status)
-					mn_status_exitcode=$?
-					mn_status_exitcode2=0
+					
+					if ! checkprocess $i
+						then
+							echo -e ""
+							echo -e "${RED}ERROR ${YELLOW}process for ${CYAN}$i${YELLOW} node not found, node doesn't appear to be started${NC}"
+							mn_status_exitcode=1
+							mn_status_exitcode2=1
+							processtestresult=1
+						else
+							mn_status=$($i masternode status)
+							mn_status_exitcode=$?
+							mn_status_exitcode2=0
+							processtestresult=0
+					fi
+
+#					updatechainfilelocal=""
+#					mn_status=""
+#					mn_status=$($i masternode status)
+#					mn_status_exitcode=$?
+#					mn_status_exitcode2=0
 
 #					echo -e "$mn_status"
 #					echo -e ""
@@ -1311,13 +1705,13 @@ case $start in
 					grep -e 'state' <<< $mn_status
 					grep -e 'status' <<< $mn_status
 
-					if grep -q 'POSE' <<< $mn_status
+					if grep -iq 'BANNED' <<< $mn_status
 						then 
 							mn_status_exitcode2=1
-							echo -e "Got here POSE"
+							echo -e "Got here POSE_BANNED"
 					fi
 
-					if grep -q 'ERROR' <<< $mn_status
+					if grep -iq 'ERROR' <<< $mn_status
 						then 
 							mn_status_exitcode2=1
 							echo -e "Got here ERROR"
@@ -1333,7 +1727,7 @@ case $start in
 #					mn_status_exitcode2=$?
 					echo -e ""
 
-					if [[ $mn_status_exitcode != 0 ]] || [[ $mn_status_exitcode2 != 0 ]]
+					if [[ $mn_status_exitcode != 0 ]] || [[ $mn_status_exitcode2 != 0 ]] || [[ $processtestresult != 0 ]]
 						then
 							mn_status_exitcode=1
 						else
@@ -1524,8 +1918,6 @@ case $start in
 								fi
 							fi
 					fi
-				else
-					echo -e "${RED}No $ticker MN's found to check${NC}"
 			fi
 
 			echo -e ""
@@ -1534,7 +1926,7 @@ case $start in
 
 		if [[ $foundone == 0 ]]
 			then
-				echo -e "${CYAN}Found no SCC nodes${NC}"
+				echo -e "${CYAN}Found no $ticker nodes${NC}"
 		fi
 
 		exit
@@ -1542,8 +1934,9 @@ case $start in
 	;;
 
 
-	17)	echo -e "Beginning Explorer comparison tool with optional repair"
+	15)	echo -e "Beginning Explorer comparison tool with optional repair"
 
+		foundone=0
 		updatechainfile=0
 		updatechainfilelocal=0
 		offlinerepairall=0
@@ -1560,12 +1953,13 @@ case $start in
 
 		for i in $(ls /home/); do
 
-			echo -e "${YELLOW}Checking for $ticker MN's${NC}"
-			echo -e "found ${CYAN}$i${NC}..."
-#			echo -e ""
-
 			if [[ $i == *scc* ]]
 				then
+					echo -e "${YELLOW}Checking for $ticker MN's${NC}"
+					echo -e "found ${CYAN}$i${NC}..."
+#					echo -e ""
+
+					foundone=1
 					currentblock=$(curl -s https://www.coinexplorer.net/api/v1/SCC/getblockcount)
 					currentblockstatus=$?
 
@@ -1732,19 +2126,22 @@ case $start in
 									fi
 
 							fi
-				else
-					echo -e "${RED}No $ticker MN's found to check${NC}"
 			fi
 
 			echo -e ""
 
 		done
 
+		if [[ $foundone == 0 ]]
+			then
+				echo -e "${CYAN}Found no $ticker nodes${NC}"
+		fi
+
 		exit
 
 	;;
 
-	18) echo -e "${YELLOW}Available disk space is${CYAN}"
+	16) echo -e "${YELLOW}Available disk space is${CYAN}"
 
 		df / -h
 
@@ -1760,84 +2157,12 @@ case $start in
 
 	;;
 
-	91)	echo -e "${YELLOW}Beginning Optional Sleep delay install/update tool${NC}"
-
-		sleeprandomfilecheck
-
-		echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} MN service files${NC}"
-
-		foundone=0
-
-		for i in $(ls /etc/systemd/system/)
-			do
-				if [[ $i == *scc* ]]
-					then
-						foundone=1
-
-						echo -e "${YELLOW}found ${CYAN}$i${YELLOW}...${NC}"
-						echo -e ""
-						echo -e "${CyAN}Checking file ${MAGENTA}$i${NC}"
-
-						grepkcheck1=$(grep -Fxq 'ExecStartPre=/usr/local/bin/sleeprandom' /etc/systemd/system/$i)
-						grepcheckstatus=$?
-
-						if [[ $grepcheckstatus == 0 ]]
-							then
-								echo -e "${CYAN}$i already updated${NC}"
-							else
-								sed -i '/^ExecStart=.*/i ExecStartPre=/usr/local/bin/sleeprandom' /etc/systemd/system/$i
-								sed -i 's/TimeoutStartSec=.*/TimeoutStartSec=3000s/g' /etc/systemd/system/$i
-								echo -e "${CYAN}Updated ${MAGENTA}$i${NC}"
-								echo -e ""
-								echo -e "${YELLOW}Reloading system config daemon files${NC}"
-								echo -e ""
-								systemctl daemon-reload
-						fi
-				fi
-			done
-
-		if [[ $foundone == 0 ]]
-			then
-				echo -e "${CYAN}Found no SCC nodes${NC}"
-		fi
+	98)	maintmenu
 
 		exit
 
 	;;
-
-	92)	echo -e "${YELLOW}Beginning Private Keys and IP for all nodes${NC}"
-
-		echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} IP/MN private keys${NC}"
-
-		foundone=0
-
-		for i in $(ls /home/)
-			do
-				if [[ $i == *scc* ]]
-					then
-
-						foundone=1
-
-						privkey=$(grep -e 'masternodeblsprivkey' /home/$i/.scc/stakecubecoin.conf | cut -d\= -f2)
-						grepcheckstatus=$?
-						ip=$(grep -e 'bind' /home/$i/.scc/stakecubecoin.conf | cut -d\= -f2)
-
-						echo -e "${YELLOW}found ${CYAN}$i${YELLOW}...${NC}"
-						echo -e "${CYAN}IP: ${GREEN}$ip${NC}"
-						echo -e "${CYAN}Private Key:${MAGENTA}$privkey${NC}"
-						echo -e ""
-				fi
-			done
-
-		if [[ $foundone == 0 ]]
-			then
-				echo -e "${CYAN}Found no SCC nodes${NC}"
-		fi
-
-		exit
-
-	;;
-
+	
 	99)	echo -e "${MAGENTA}Beginning Update Checker Tool${NC}"
 
 		echo -e ""
