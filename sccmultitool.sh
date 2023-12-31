@@ -182,6 +182,11 @@ function debugmodeonoffsub() {
 				echo -e "${YELLOW}Debug line not found, inserting turned on${NC}"
 
 				echo 'debug=1' >> /home/$alias/.scc/stakecubecoin.conf
+				echo -e ""
+				echo -e "${YELLOW}Restarting node and pausing 120 seconds${NC}"
+				systemctl restart $alias --no-block
+				displaypause 120
+				return
 			else
 				if [[ $grepcheckstatus == 1 && $debugcount == 0 && $onoff == 0 ]]
 					then
@@ -189,6 +194,11 @@ function debugmodeonoffsub() {
 						echo -e "${YELLOW}Debug line not found, inserting turned off${NC}"
 
 						echo 'debug=0' >> /home/$alias/.scc/stakecubecoin.conf
+						echo -e ""
+						echo -e "${YELLOW}Restarting node and pausing 120 seconds${NC}"
+						systemctl restart $alias --no-block
+						displaypause 120
+						return
 				fi
 		fi
 
@@ -302,7 +312,12 @@ function debugmodeonoff() {
 					
 					if [[ $errorpid == 0 ]]
 						then
-
+							if [[ $debugcmd == "" ]]
+								then
+									debugcmd=1
+									debugcount=0
+							fi
+							
 							debugmodeonoffsub $i $onoff $debugcmd $debugcount $grepcheckstatus
 					fi
 
