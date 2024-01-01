@@ -129,11 +129,21 @@ function displaypause() {
 
         local delaycount=$1
 
-        while [ $delaycount -ge 0 ]
+        echo -e "${YELLOW}Press any key to abort countdown and continue${NC}"
+		
+		while [ $delaycount -ge 0 ]
                  do
                         echo -en "${GREEN}Countdown ${NC}$delaycount"
                         sleep 1
                         echo -en "${ERASEBACK}${NC}${BEGINLINE}${NC}"
+						read -n 1 -t 0.05 $anykey
+						anykeystatus=$?
+						if [[ $anykeystatus -le 127 ]]
+							then
+								echo -en "${ERASEBACK}${NC}${BEGINLINE}${NC}"
+								return
+						fi
+						
                         delaycount=$(($delaycount - 1))
                 done
 
@@ -150,6 +160,21 @@ function checkprocess() {
 	processidentoutput=$(ps -U $processname -jh)
 	processident=$(echo $processidentoutput | grep -c $processname -)
 	processidentstatus=$?
+
+	checkprocessname=$(echo $processidentoutput | grep -c sleep -)
+	checkprocessstatus=$?
+	
+	if [[ $checkprocessstatus == 0 ]]
+		then
+			echo -e ""
+			echo -e "${YELLOW}Process is in sleep mode waiting to start still${NC}"
+			
+			sleepcounter="$(echo $processidentoutput | grep 'sleep[ 0-9]' | awk '{print $NF}')"
+			echo -e "${YELLOS}$sleepcounter"
+			sleepcounter=$(( $sleepcounter + 15 ))
+			echo -e "$sleepcounter"
+			displaypause $sleepcounter
+	fi
 
 #	echo -e ""
 #	echo -e "$processidentoutput"
@@ -245,6 +270,35 @@ function debugmodeonoffsub() {
 		return
 
 }
+
+function checkifstart() {
+
+		local alias=$1
+		local yesnostart=""
+		
+		echo -e ""
+		echo -e "${YELLOW}Do you wish to try and start ${CYAN}$alias${YELLOW}?${NC}"
+		echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+		read yesnostart
+
+		checkyesno $yesnostart
+
+		if [[ $yesnostart == "yes" ]]
+			then
+				echo -e ""
+				echo -e "${YELLOW}This will only attempt a start and will not verify it started${NC}"
+				systemctl start $alias --no-block
+				echo -e "${CYAN}Sent start command${NC}"
+			else
+				echo -e ""
+				echo -e "${YELLOW}Not starting${NC}"
+		fi
+
+		return
+
+}
+
+
 
 function debugmodeonoff() {
 
@@ -1159,6 +1213,8 @@ echo -e "${YELLOW}92 - Output all ${ticker} nodes IP and Private Keys${NC}"
 echo -e "${YELLOW}93 - Change Debug mode for single ${ticker} node${NC}"
 echo -e "${YELLOW}94 - Change Debug mode for all ${ticker} nodes${NC}"
 echo -e "${YELLOW}95 - Check current debug status for all ${ticker} nodes${NC}"
+echo -e "${YELLOW}96 - Collect debug log for a single ${ticker} node${NC}"
+echo -e "${YELLOW}97 - Collect debug logs for all ${ticker} nodes${NC}"
 echo -e "${YELLOW}${NC}"
 echo -e "${YELLOW}98 - Enable IPv6 ${MAGENTA}Contabo VPS ONLY${NC}"
 echo -e "${YELLOW}99 - Full chain repair by not using a bootstrap(not recommended)${NC}"
@@ -1388,6 +1444,88 @@ case $maintstart in
 			fi
 
 		done
+
+		exit
+
+	;;
+
+	96)	echo -e "${YELLOW}Beginning collect single node debug log tool${NC}"
+
+		echo -e ""
+		echo -e "${YELLOW}Checking home directory for masternode alias's${NC}"
+		echo -e ""
+		ls /home/
+		echo -e ""
+		echo -e "${YELLOW}Above are the alias names for the installed masternodes${NC}"
+		echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
+		echo -e ""
+		read alias
+
+		checkaliasvalidity $alias
+
+		echo -e ""
+		echo -e "${YELLOW}Collecting log for ${CYAN}$alias${NC}"
+		echo -e ""
+		
+		debugzipfilename="${alias}_debug.zip"
+
+		rm ~/${debugzipfilename}
+		7za a -tzip -spf -- ~/${debugzipfilename} /home/$alias/.scc/debug.log 
+
+		echo -e ""
+		echo -e "${YELLOW}Completed file name is ${CYAN}${debugzipfilename}${YELLOW} in user roots folder${NC}"
+		echo -e ""
+		echo -e "${YELLOW}Tool Completed${NC}"
+
+		exit
+
+	;;
+
+	97)	echo -e "${YELLOW}Beginning collection of debug logs on all ${ticker} nodes${NC}"
+
+		debugzipfilename="SCC_nodes_debug_logs.zip"
+		debugfilelist=""
+		
+		echo -e ""
+
+		for i in $(ls /home/); do
+
+			if [[ $i == *scc* ]]
+				then
+					foundone=1
+
+					echo -e "found ${CYAN}$i${NC}..."
+
+					if [[ $debugfilelist == "" ]]
+						then
+							debugfilelist="/home/${i}/.scc/debug.log "
+						else
+							debugfilelist="${debugfilelist} /home/${i}/.scc/debug.log "
+					fi
+					
+#					echo -e ""
+#					echo -e "${debugfilelist}"
+#					echo -e "$debugcmd"
+#					echo -e "$grepcheckstatus"
+
+			fi
+
+		done
+
+			if [[ $foundone == 1 ]]
+				then
+					echo -e ""
+					echo -e "${CYAN}Zipping all debug logs${NC}"
+					
+					rm ~/${debugzipfilename}
+					7za a -tzip -spf -- ~/$debugzipfilename $debugfilelist
+			fi
+
+			if [[ $foundone == 0 ]]
+				then
+					echo -e ""
+					echo -e "${CYAN}No $ticker nodes found${NC}"
+			fi
 
 		exit
 
@@ -1703,6 +1841,8 @@ case $start in
 							runnode=1
 							echo -e ""
 							echo -e "${RED}ERROR ${YELLOW}process for ${CYAN}$i${YELLOW} not found${NC}"
+							
+							checkifstart $i
 						else
 							runnode=0
 					fi
@@ -1775,6 +1915,9 @@ case $start in
 						then
 							echo -e ""
 							echo -e "${RED}ERROR ${YELLOW}process for ${CYAN}$i${YELLOW} node not found, node doesn't appear to be started${NC}"
+							
+							checkifstart $i
+							
 							mn_status_exitcode=1
 							mn_status_exitcode2=1
 							processtestresult=1
