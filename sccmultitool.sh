@@ -6,6 +6,7 @@ coinnamed=sccd
 coinnamecli=scc-cli
 ticker=SCC
 coindir=scc
+sleeptimerinsec=120
 binaries="https://github.com/stakecube/StakeCubeCoin/releases/download/v3.4.3.2/scc-3.4.3.2-linux-nodes.zip"
 snapshot='https://stakecubecoin.net/bootstrap.zip'
 port=40000
@@ -20,7 +21,7 @@ if [[ $checkforrunningapt == "" ]]
                 echo -e "Apt not currently running"
 				echo -e ""
         else
-                echo -e "${RED}Error:${NC} Apt is already running, aborting"
+                echo -e "${RED}Error:${NC} Apt is already running, aborting script"
                 exit
 fi
 
@@ -170,7 +171,7 @@ function checkprocess() {
 			echo -e "${YELLOW}Process is in sleep mode waiting to start still${NC}"
 			
 			sleepcounter="$(echo $processidentoutput | grep 'sleep[ 0-9]' | awk '{print $NF}')"
-			echo -e "${YELLOS}$sleepcounter"
+			echo -e "${YELLOW}$sleepcounter"
 			sleepcounter=$(( $sleepcounter + 15 ))
 			echo -e "$sleepcounter"
 			displaypause $sleepcounter
@@ -210,7 +211,7 @@ function debugmodeonoffsub() {
 				echo -e ""
 				echo -e "${YELLOW}Restarting node and pausing 120 seconds${NC}"
 				systemctl restart $alias --no-block
-				displaypause 120
+				displaypause $sleeptimerinsec
 				return
 			else
 				if [[ $grepcheckstatus == 1 && $debugcount == 0 && $onoff == 0 ]]
@@ -222,7 +223,7 @@ function debugmodeonoffsub() {
 						echo -e ""
 						echo -e "${YELLOW}Restarting node and pausing 120 seconds${NC}"
 						systemctl restart $alias --no-block
-						displaypause 120
+						displaypause $sleeptimerinsec
 						return
 				fi
 		fi
@@ -250,7 +251,7 @@ function debugmodeonoffsub() {
 				echo -e ""
 				echo -e "${YELLOW}Restarting node and pausing 120 seconds${NC}"
 				systemctl restart $alias --no-block
-				displaypause 120
+				displaypause $sleeptimerinsec
 				return
 		fi
 
@@ -263,7 +264,7 @@ function debugmodeonoffsub() {
 				echo -e ""
 				echo -e "${YELLOW}Restarting node and pausing 120 seconds${NC}"
 				systemctl restart $alias --no-block
-				displaypause 120
+				displaypause $sleeptimerinsec
 				return
 		fi
 
@@ -859,7 +860,7 @@ EOF
 			echo -e "${CYAN}Node binaries already downloaded and setup${NC}"
 			echo -e ""
 		else
-			echo -e "${YELLOW}Installing node binaries for ${MAGENTA}$alias{$NC}"
+			echo -e "${YELLOW}Installing node binaries for ${MAGENTA}$alias${NC}"
 			cd /usr/local/bin
 			wget -nv --show-progress ${binaries} -O ${coinname}.zip
 			7za x ${coinname}.zip
@@ -1208,16 +1209,17 @@ echo -e "${YELLOW}Maintenance menu${NC}"
 echo -e ""
 echo -e "${YELLOW}Please enter a number from the list and press [ENTER] to start maintenance tool"
 echo -e ""
-echo -e "${YELLOW}91 - Check and install/update service files for optional sleep delay${NC}"
+echo -e "${YELLOW}91 - Check and install/update service files for ${MAGENTA}optional${YELLOW} sleep delay${NC}"
 echo -e "${YELLOW}92 - Output all ${ticker} nodes IP and Private Keys${NC}"
 echo -e "${YELLOW}93 - Change Debug mode for single ${ticker} node${NC}"
 echo -e "${YELLOW}94 - Change Debug mode for all ${ticker} nodes${NC}"
 echo -e "${YELLOW}95 - Check current debug status for all ${ticker} nodes${NC}"
 echo -e "${YELLOW}96 - Collect debug log for a single ${ticker} node${NC}"
 echo -e "${YELLOW}97 - Collect debug logs for all ${ticker} nodes${NC}"
+echo -e "${YELLOW}98 - Delete debug log and restart node(s), single or all${NC}"
 echo -e "${YELLOW}${NC}"
-echo -e "${YELLOW}98 - Enable IPv6 ${MAGENTA}Contabo VPS ONLY${NC}"
 echo -e "${YELLOW}99 - Full chain repair by not using a bootstrap(not recommended)${NC}"
+echo -e "${YELLOW}100- Enable IPv6 ${MAGENTA}Contabo VPS ONLY${NC}"
 echo -e ""
 echo -e "${YELLOW}0  - Exit"
 echo -e ""
@@ -1531,12 +1533,74 @@ case $maintstart in
 
 	;;
 
-	98)	echo -e "Starting IPv6 setup tool..."
+	98)	echo -e "${YELLOW}Beginning deletion of debug log(s) for ${ticker} node(s)${NC}"
 
-		ipv6_setup
+		echo -e ""
 
-		#Finish
-		echo -e "IPv6 setup complete"
+		echo -e "${YELLOW}Do you wish to erase all nodes debug logs?${NC}"
+		echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+		echo -e ""
+		read eraseallnodes
+
+		checkyesno $eraseallnodes
+
+		singlealias=0
+		
+		if [[ $eraseallnodes == "no" ]]
+			then
+				echo -e ""
+				echo -e "${YELLOW}Checking home directory for masternode alias's${NC}"
+				echo -e ""
+				ls /home/
+				echo -e ""
+				echo -e "${YELLOW}Above are the alias names for the installed masternodes${NC}"
+				echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
+				echo -e ""
+				read singlealias
+
+				checkaliasvalidity $singlealias
+		fi
+		
+		if [[ $eraseallnodes == "yes" ]]
+			then
+			
+				for i in $(ls /home/); do
+
+					if [[ $i == *scc* ]]
+						then
+							echo -e "found ${CYAN}$i${NC}..."
+							echo -e ""
+							echo -e "${YELLOW}Erasing debug log file and restarting ${CYAN}$i${NC}"
+							
+							rm /home/$i/.scc/debug.log
+							systemctl restart $i --no-block
+
+							echo -e ""
+							echo -e "${YELLOW}Restarted node and pausing 120 seconds${NC}"
+							displaypause $sleeptimerinsec
+					fi
+
+
+							
+							
+#					echo -e ""
+#					echo -e "${debugfilelist}"
+#					echo -e "$debugcmd"
+#					echo -e "$grepcheckstatus"
+
+				done
+			else
+				echo -e ""
+				echo -e "${YELLOW}Erasing debug log file and restarting ${CYAN}$singlealias${NC}"
+							
+				rm /home/$singlealias/.scc/debug.log
+				systemctl restart $singlealias --no-block
+
+				echo -e ""
+				echo -e "${YELLOW}Restarted node and pausing 120 seconds${NC}"
+				displaypause $sleeptimerinsec
+		fi
+
 		exit
 
 	;;
@@ -1574,6 +1638,16 @@ case $maintstart in
 
 		systemctl start --no-block $alias.service
 
+		exit
+
+	;;
+
+	100)	echo -e "Starting IPv6 setup tool..."
+
+		ipv6_setup
+
+		#Finish
+		echo -e "IPv6 setup complete"
 		exit
 
 	;;
@@ -1655,7 +1729,7 @@ case $start in
 					echo -e "${CYAN}$i${YELLOW} updated and restarted${NC}"
 					echo -e ""
 					echo -e "${YELLOW}Pausing for 2 minutes to let ${CYAN}$i${YELLOW} settle${NC}"
-					displaypause 120
+					displaypause $sleeptimerinsec
 				else
 					echo -e "${YELLOW}No ${CYAN}$ticker${YELLOW} MN's found to update${NC}"
 			fi
@@ -1702,7 +1776,7 @@ case $start in
 										echo -e ""
 									else
 										echo -e "Pausing for 2 minutes to let ${CYAN}$i${NC} settle"
-										displaypause 120
+										displaypause $sleeptimerinsec
 										echo -e ""
 								fi
 							else
