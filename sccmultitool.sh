@@ -209,7 +209,7 @@ function debugmodeonoffsub() {
 
 				echo 'debug=1' >> /home/$alias/.scc/stakecubecoin.conf
 				echo -e ""
-				echo -e "${YELLOW}Restarting node and pausing 120 seconds${NC}"
+				echo -e "${YELLOW}Restarting node and pausing $sleeptimerinsec seconds${NC}"
 				systemctl restart $alias --no-block
 				displaypause $sleeptimerinsec
 				return
@@ -221,7 +221,7 @@ function debugmodeonoffsub() {
 
 						echo 'debug=0' >> /home/$alias/.scc/stakecubecoin.conf
 						echo -e ""
-						echo -e "${YELLOW}Restarting node and pausing 120 seconds${NC}"
+						echo -e "${YELLOW}Restarting node and pausing $sleeptimerinsec seconds${NC}"
 						systemctl restart $alias --no-block
 						displaypause $sleeptimerinsec
 						return
@@ -249,7 +249,7 @@ function debugmodeonoffsub() {
 				sed -i 's/debug=0/debug=1/gi' /home/$alias/.scc/stakecubecoin.conf
 
 				echo -e ""
-				echo -e "${YELLOW}Restarting node and pausing 120 seconds${NC}"
+				echo -e "${YELLOW}Restarting node and pausing $sleeptimerinsec seconds${NC}"
 				systemctl restart $alias --no-block
 				displaypause $sleeptimerinsec
 				return
@@ -262,7 +262,7 @@ function debugmodeonoffsub() {
 				sed -i 's/debug=1/debug=0/gi' /home/$alias/.scc/stakecubecoin.conf
 
 				echo -e ""
-				echo -e "${YELLOW}Restarting node and pausing 120 seconds${NC}"
+				echo -e "${YELLOW}Restarting node and pausing $sleeptimerinsec seconds${NC}"
 				systemctl restart $alias --no-block
 				displaypause $sleeptimerinsec
 				return
@@ -1574,7 +1574,7 @@ case $maintstart in
 							systemctl restart $i --no-block
 
 							echo -e ""
-							echo -e "${YELLOW}Restarted node and pausing 120 seconds${NC}"
+							echo -e "${YELLOW}Restarted node and pausing $sleeptimerinsec seconds${NC}"
 							displaypause $sleeptimerinsec
 					fi
 
@@ -1589,12 +1589,12 @@ case $maintstart in
 			else
 				echo -e ""
 				echo -e "${YELLOW}Erasing debug log file and restarting ${CYAN}$singlealias${NC}"
-							
+
 				rm /home/$singlealias/.scc/debug.log
 				systemctl restart $singlealias --no-block
 
 				echo -e ""
-				echo -e "${YELLOW}Restarted node and pausing 120 seconds${NC}"
+				echo -e "${YELLOW}Restarted node and pausing $sleeptimerinsec seconds${NC}"
 				displaypause $sleeptimerinsec
 		fi
 
