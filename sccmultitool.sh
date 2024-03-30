@@ -1660,9 +1660,9 @@ case $start in
 
 	0)	echo -e "Stopping and exiting script..."
 		exit
-    ;;
+	;;
 
-    1)	echo -e "${YELLOW}Starting 8GB swap space setup with added dependencies${NC}"
+	1)	echo -e "${YELLOW}Starting 8GB swap space setup with added dependencies${NC}"
 
 		setup_swap "8192"
 
@@ -1684,7 +1684,7 @@ case $start in
 
 		exit
 
-    ;;
+	;;
 
 	2)	echo -e "${YELLOW}Resizing Swap space to X MB swap size${NC}"
 		echo -e ""
@@ -1700,7 +1700,7 @@ case $start in
 		exit
 	;;
 
-    3)	echo -e "${YELLOW}Starting Wallet update tool for ${CYAN}All ${ticker}${YELLOW} nodes${NC}"
+	3)	echo -e "${YELLOW}Starting Wallet update tool for ${CYAN}All ${ticker}${YELLOW} nodes${NC}"
 		echo -e ""
 		cd /usr/local/bin
 		rm $coinnamecli $coinnamed
