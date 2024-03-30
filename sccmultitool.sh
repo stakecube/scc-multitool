@@ -1665,7 +1665,7 @@ case $start in
 		exit
     ;;
 
-    1)	echo -e "${YELLOW}Starting 8GB swap space setup with added dependencies${NC}"
+	1)	echo -e "${YELLOW}Starting 8GB swap space setup with added dependencies${NC}"
 
 		setup_swap "8192"
 
