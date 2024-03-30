@@ -2459,7 +2459,7 @@ case $start in
 
 		echo -e "${NC}"
 
-		echo -e "${YELLOW}Operating system version"
+		echo -e "${YELLOW}Operating system version${CYAN}"
 
 		cat /etc/os-release
 
