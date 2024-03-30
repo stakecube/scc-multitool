@@ -100,7 +100,7 @@ echo -e "${YELLOW}12 - Chain/PoSe maintenance tool (single ${ticker} node)"
 echo -e "${YELLOW}13 - Check block count status against explorer (all ${ticker} nodes)"
 echo -e "${YELLOW}14 - Check MN health status and optional repair (all ${ticker} nodes)"
 echo -e "${YELLOW}15 - Check block count and optional chain repair (all ${ticker} nodes)"
-echo -e "${YELLOW}16 - Check status of disk space and memory usage"
+echo -e "${YELLOW}16 - Output some system diagnostic info"
 echo -e ""
 echo -e "${YELLOW}98 - Maintenance Sub-Menu - extra functions"
 echo -e "${YELLOW}99 - Check for updated script from GitHub${NC}"
@@ -131,7 +131,7 @@ function displaypause() {
         local delaycount=$1
 
         echo -e "${YELLOW}Press any key to abort countdown and continue${NC}"
-		
+
 		while [ $delaycount -ge 0 ]
                  do
                         echo -en "${GREEN}Countdown ${NC}$delaycount"
@@ -144,7 +144,7 @@ function displaypause() {
 								echo -en "${ERASEBACK}${NC}${BEGINLINE}${NC}"
 								return
 						fi
-						
+
                         delaycount=$(($delaycount - 1))
                 done
 
@@ -164,12 +164,12 @@ function checkprocess() {
 
 	checkprocessname=$(echo $processidentoutput | grep -c sleep -)
 	checkprocessstatus=$?
-	
+
 	if [[ $checkprocessstatus == 0 ]]
 		then
 			echo -e ""
 			echo -e "${YELLOW}Process is in sleep mode waiting to start still${NC}"
-			
+
 			sleepcounter="$(echo $processidentoutput | grep 'sleep[ 0-9]' | awk '{print $NF}')"
 			echo -e "${YELLOW}$sleepcounter"
 			sleepcounter=$(( $sleepcounter + 15 ))
@@ -276,7 +276,7 @@ function checkifstart() {
 
 		local alias=$1
 		local yesnostart=""
-		
+
 		echo -e ""
 		echo -e "${YELLOW}Do you wish to try and start ${CYAN}$alias${YELLOW}?${NC}"
 		echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
@@ -298,8 +298,6 @@ function checkifstart() {
 		return
 
 }
-
-
 
 function debugmodeonoff() {
 
@@ -1468,7 +1466,7 @@ case $maintstart in
 		echo -e ""
 		echo -e "${YELLOW}Collecting log for ${CYAN}$alias${NC}"
 		echo -e ""
-		
+
 		debugzipfilename="${alias}_debug.zip"
 
 		rm ~/${debugzipfilename}
@@ -1487,7 +1485,7 @@ case $maintstart in
 
 		debugzipfilename="SCC_nodes_debug_logs.zip"
 		debugfilelist=""
-		
+
 		echo -e ""
 
 		for i in $(ls /home/); do
@@ -1504,7 +1502,7 @@ case $maintstart in
 						else
 							debugfilelist="${debugfilelist} /home/${i}/.scc/debug.log "
 					fi
-					
+
 #					echo -e ""
 #					echo -e "${debugfilelist}"
 #					echo -e "$debugcmd"
@@ -1518,7 +1516,7 @@ case $maintstart in
 				then
 					echo -e ""
 					echo -e "${CYAN}Zipping all debug logs${NC}"
-					
+
 					rm ~/${debugzipfilename}
 					7za a -tzip -spf -- ~/$debugzipfilename $debugfilelist
 			fi
@@ -1545,7 +1543,7 @@ case $maintstart in
 		checkyesno $eraseallnodes
 
 		singlealias=0
-		
+
 		if [[ $eraseallnodes == "no" ]]
 			then
 				echo -e ""
@@ -1560,10 +1558,10 @@ case $maintstart in
 
 				checkaliasvalidity $singlealias
 		fi
-		
+
 		if [[ $eraseallnodes == "yes" ]]
 			then
-			
+
 				for i in $(ls /home/); do
 
 					if [[ $i == *scc* ]]
@@ -1571,7 +1569,7 @@ case $maintstart in
 							echo -e "found ${CYAN}$i${NC}..."
 							echo -e ""
 							echo -e "${YELLOW}Erasing debug log file and restarting ${CYAN}$i${NC}"
-							
+
 							rm /home/$i/.scc/debug.log
 							systemctl restart $i --no-block
 
@@ -1581,8 +1579,7 @@ case $maintstart in
 					fi
 
 
-							
-							
+
 #					echo -e ""
 #					echo -e "${debugfilelist}"
 #					echo -e "$debugcmd"
@@ -1663,9 +1660,9 @@ case $start in
 
 	0)	echo -e "Stopping and exiting script..."
 		exit
-	;;
+    ;;
 
-	1)	echo -e "${YELLOW}Starting 8GB swap space setup with added dependencies${NC}"
+    1)	echo -e "${YELLOW}Starting 8GB swap space setup with added dependencies${NC}"
 
 		setup_swap "8192"
 
@@ -1684,9 +1681,10 @@ case $start in
 		echo -e ""
 		echo -e "${YELLOW}Please ${RED}reboot${YELLOW} before installing any nodes!${NC}"
 		echo -e ""
+
 		exit
 
-	;;
+    ;;
 
 	2)	echo -e "${YELLOW}Resizing Swap space to X MB swap size${NC}"
 		echo -e ""
@@ -1702,7 +1700,7 @@ case $start in
 		exit
 	;;
 
-	3)	echo -e "${YELLOW}Starting Wallet update tool for ${CYAN}All ${ticker}${YELLOW} nodes${NC}"
+    3)	echo -e "${YELLOW}Starting Wallet update tool for ${CYAN}All ${ticker}${YELLOW} nodes${NC}"
 		echo -e ""
 		cd /usr/local/bin
 		rm $coinnamecli $coinnamed
@@ -1826,7 +1824,6 @@ case $start in
 
 	;;
 
-
 	8)	echo -e "${YELLOW}Starting $ticker MasterNode install with Sleep Delay functionality${NC}"
 
 		install_mn "no" "" "yes"
@@ -1914,7 +1911,7 @@ case $start in
 							runnode=1
 							echo -e ""
 							echo -e "${RED}ERROR ${YELLOW}process for ${CYAN}$i${YELLOW} not found${NC}"
-							
+
 							checkifstart $i
 						else
 							runnode=0
@@ -1988,9 +1985,9 @@ case $start in
 						then
 							echo -e ""
 							echo -e "${RED}ERROR ${YELLOW}process for ${CYAN}$i${YELLOW} node not found, node doesn't appear to be started${NC}"
-							
+
 							checkifstart $i
-							
+
 							mn_status_exitcode=1
 							mn_status_exitcode2=1
 							processtestresult=1
@@ -2462,6 +2459,12 @@ case $start in
 
 		echo -e "${NC}"
 
+		echo -e "${YELLOW}Operating system version"
+
+		cat /etc/os-release
+
+		echo -e "${NC}"
+
 		exit
 
 	;;
@@ -2510,6 +2513,5 @@ case $start in
 		exit
 
 	;;
-
 
 esac
