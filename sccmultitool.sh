@@ -8,6 +8,7 @@ ticker=SCC
 coindir=scc
 sleeptimerinsec=120
 binaries="https://github.com/stakecube/StakeCubeCoin/releases/download/v3.4.3.2/scc-3.4.3.2-linux-nodes.zip"
+prereleasebinaries="https://github.com/stakecube/StakeCubeCoin/releases/download/v3.4.7.0/scc-3.4.7.0-linux-nodes.zip"
 snapshot='https://stakecubecoin.net/bootstrap.zip'
 port=40000
 rpcport=39999
@@ -102,6 +103,7 @@ echo -e "${YELLOW}14 - Check MN health status and optional repair (all ${ticker}
 echo -e "${YELLOW}15 - Check block count and optional chain repair (all ${ticker} nodes)"
 echo -e "${YELLOW}16 - Output some system diagnostic info"
 echo -e ""
+echo -e "${CYAN}97 - Pre-Release Menu${NC}"
 echo -e "${YELLOW}98 - Maintenance Sub-Menu - extra functions"
 echo -e "${YELLOW}99 - Check for updated script from GitHub${NC}"
 echo -e ""
@@ -1192,6 +1194,71 @@ function mn_uninstall() {
 
 }
 
+function prereleasemenu() {
+
+clear
+displayname
+
+#Tool pre-release menu
+echo -e ""
+echo -e "${UNDERLINE}${CYAN}Welcome to the StakeCube Multitools Pre-Releaes Menu${NC}"
+echo -e ""
+echo -e "${YELLOW}Please enter a number from the list and press [ENTER] to start maintenance tool"
+echo -e ""
+echo -e "${YELLOW}991 - Download and Install pre-release version and restart all nodes${NC}"
+echo -e ""
+echo -e "${YELLOW}0  - Exit"
+echo -e ""
+echo -e "${NC}"
+
+read -p "> " prerelease
+echo -e ""
+
+case $prerelease in
+
+	991)	echo -e "${YELLOW}Starting Wallet update tool for ${CYAN}All ${ticker}${YELLOW} nodes with pre-release software${NC}"
+			echo -e ""
+			cd /usr/local/bin
+			rm $coinnamecli $coinnamed
+			wget -nv --show-progress ${prereleasebinaries} -O ${coinname}.zip
+			7za x ${coinname}.zip
+			chmod +x ${coinnamecli} ${coinnamed}
+			rm ${coinname}.zip
+			cd /root
+			displaypause 15
+
+			for i in $(ls /home/); do
+				echo -e ""
+				echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} MN's${NC}"
+				echo -e "${YELLOW}found ${CYAN}$i${NC}..."
+				echo -e ""
+
+				if [[ $i == *scc* ]]
+					then
+						echo -e "${YELLOW}Restarting ${CYAN}$i${YELLOW}..${NC}"
+						systemctl stop $i
+						displaypause 3
+						systemctl start --no-block $i
+						echo -e "${CYAN}$i${YELLOW} updated and restarted${NC}"
+						echo -e ""
+						echo -e "${YELLOW}Pausing for $sleeptimerinsec seconds to let ${CYAN}$i${YELLOW} settle${NC}"
+						displaypause $sleeptimerinsec
+					else
+						echo -e "${YELLOW}No ${CYAN}$ticker${YELLOW} MN's found to update${NC}"
+				fi
+
+			done
+
+			echo -e "${CYAN}Wallet update tool finished${NC}"
+			exit
+
+	;;
+
+esac
+
+}
+
+
 function maintmenu() {
 
 
@@ -1725,7 +1792,7 @@ case $start in
 					systemctl start --no-block $i
 					echo -e "${CYAN}$i${YELLOW} updated and restarted${NC}"
 					echo -e ""
-					echo -e "${YELLOW}Pausing for 2 minutes to let ${CYAN}$i${YELLOW} settle${NC}"
+					echo -e "${YELLOW}Pausing for $sleeptimerinsec seconds to let ${CYAN}$i${YELLOW} settle${NC}"
 					displaypause $sleeptimerinsec
 				else
 					echo -e "${YELLOW}No ${CYAN}$ticker${YELLOW} MN's found to update${NC}"
@@ -1772,7 +1839,7 @@ case $start in
 										displaypause 10
 										echo -e ""
 									else
-										echo -e "Pausing for 2 minutes to let ${CYAN}$i${NC} settle"
+										echo -e "Pausing for $sleeptimerinsec seconds to let ${CYAN}$i${NC} settle"
 										displaypause $sleeptimerinsec
 										echo -e ""
 								fi
@@ -2464,6 +2531,24 @@ case $start in
 		cat /etc/os-release
 
 		echo -e "${NC}"
+
+		exit
+
+	;;
+
+	97) echo -e ""
+		echo -e "${RED}Are you sure you wish to enter the pre-release menu?${NC}"
+		echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+		read prereleaseyesno
+		checkyesno $prereleaseyesno
+
+		if [[ $prereleaseyesno == "yes" ]]
+			then
+				prereleasemenu
+			else
+				echo -e "${CYAN}Aborting${NC}"
+				echo -e ""
+		fi
 
 		exit
 
