@@ -1227,6 +1227,15 @@ case $prerelease in
 			cd /root
 			displaypause 15
 
+			echo -e "How long between node (re)starts in seconds?"
+			echo -e "Blank/Empty equals 120 seconds"
+			read secondsdelay
+
+			if [[ $secondsdelay != "" ]]
+				then
+					sleeptimerinsec=$secondsdelay
+			fi
+
 			for i in $(ls /home/); do
 				echo -e ""
 				echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} MN's${NC}"
@@ -1778,6 +1787,15 @@ case $start in
 		cd /root
 		displaypause 15
 
+		echo -e "How long between node (re)starts in seconds?"
+		echo -e "Blank/Empty equals 120 seconds"
+		read secondsdelay
+
+		if [[ $secondsdelay != "" ]]
+			then
+				sleeptimerinsec=$secondsdelay
+		fi
+
 		for i in $(ls /home/); do
 			echo -e ""
 			echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} MN's${NC}"
@@ -1814,6 +1832,18 @@ case $start in
 
 		if [[ $stopstart == stop ]] || [[ $stopstart == start ]] || [[ $stopstart == restart ]]
 			then
+				if [[ $stopstart == restart ]] || [[ $stopstart == start ]]
+					then
+						echo -e "How long between node (re)starts in seconds?"
+						echo -e "Blank/Empty equals 120 seconds"
+						read secondsdelay
+
+						if [[ $secondsdelay != "" ]]
+							then
+								sleeptimerinsec=$secondsdelay
+						fi
+				fi
+
 				echo -e "Starting ${CYAN}$stopstart${NC} tool"
 
 				for i in $(ls /home/)
