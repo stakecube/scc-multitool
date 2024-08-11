@@ -2144,12 +2144,14 @@ case $start in
 							echo -e "${RED}Something appears to be wrong with node ${CYAN}$i${NC}"
 							echo -e ""
 
-							if [[ $updateallnodes == 0 ]]
+							if [[ $updateallnodes == "no" ]]
 								then
 									echo -e "${YELLOW}Do you wish to initiate repair of this node${NC}"
 									echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
 									read repairnode
 									checkyesno $repairnode
+								else
+									repairnode="yes"
 							fi
 
 							if [[ $repairnode == yes ]]
