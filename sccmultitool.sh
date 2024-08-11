@@ -559,11 +559,16 @@ function chain_repair() {
 			echo -e "${RED}Something is wrong with ${CYAN}$alias${NC}"
 			echo -e "${YELLOW}Continuing repair${NC}"
 			echo -e ""
-			echo -e "${YELLOW}Do you wish to still chain repair?"
-			echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
-			read checkchainrepair2
+			if [[ $updateallnodes == "no" ]]
+				then
+					echo -e "${YELLOW}Do you wish to still chain repair?"
+					echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+					read checkchainrepair2
 
-			checkyesno $checkchainrepair2
+					checkyesno $checkchainrepair2
+				else
+					checkchainrepair2="yes"
+			fi
 
 			if [[ $checkchainrepair2 == "no" ]]
 				then
@@ -2080,14 +2085,17 @@ case $start in
 
 					if ! checkprocess $i
 						then
-							echo -e ""
-							echo -e "${RED}ERROR ${YELLOW}process for ${CYAN}$i${YELLOW} node not found, node doesn't appear to be started${NC}"
+							if [[ $updateallnodes == "no" ]]
+								then
+									echo -e ""
+									echo -e "${RED}ERROR ${YELLOW}process for ${CYAN}$i${YELLOW} node not found, node doesn't appear to be started${NC}"
 
-							checkifstart $i
+									checkifstart $i
 
-							mn_status_exitcode=1
-							mn_status_exitcode2=1
-							processtestresult=1
+									mn_status_exitcode=1
+									mn_status_exitcode2=1
+									processtestresult=1
+							fi
 						else
 							mn_status=$($i masternode status)
 							mn_status_exitcode=$?
