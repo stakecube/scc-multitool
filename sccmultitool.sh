@@ -1,13 +1,13 @@
 #!/bin/bash
 #Coin info
-version="3.4.3.2"
+version="3.4.7.0"
 coinname=stakecubecoin
 coinnamed=sccd
 coinnamecli=scc-cli
 ticker=SCC
 coindir=scc
 sleeptimerinsec=120
-binaries="https://github.com/stakecube/StakeCubeCoin/releases/download/v3.4.3.2/scc-3.4.3.2-linux-nodes.zip"
+binaries="https://github.com/stakecube/StakeCubeCoin/releases/download/v3.4.7.0/scc-3.4.7.0-linux-nodes.zip"
 prereleasebinaries="https://github.com/stakecube/StakeCubeCoin/releases/download/v3.4.7.0/scc-3.4.7.0-linux-nodes.zip"
 snapshot='https://stakecubecoin.net/bootstrap.zip'
 port=40000
