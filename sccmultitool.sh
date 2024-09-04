@@ -1,33 +1,18 @@
 #!/bin/bash
 #Coin info
-version="3.4.7.0"
+version="3.4.7.1"
 coinname=stakecubecoin
 coinnamed=sccd
 coinnamecli=scc-cli
 ticker=SCC
 coindir=scc
 sleeptimerinsec=120
-binaries="https://github.com/stakecube/StakeCubeCoin/releases/download/v3.4.7.0/scc-3.4.7.0-linux-nodes.zip"
-prereleasebinaries="https://github.com/stakecube/StakeCubeCoin/releases/download/v3.4.7.0/scc-3.4.7.0-linux-nodes.zip"
+binaries="https://github.com/stakecube/StakeCubeCoin/releases/download/v3.4.7.1/scc-3.4.7.1-linux-nodes.zip"
+prereleasebinaries="https://github.com/stakecube/StakeCubeCoin/releases/download/v3.4.7.1/scc-3.4.7.1-linux-nodes.zip"
 snapshot='https://stakecubecoin.net/bootstrap.zip'
 port=40000
 rpcport=39999
 discord='https://discord.gg/xxjZzJE'
-
-#pre-setup checks and dependencies installs
-checkforrunningapt=$(ps -e | grep apt)
-
-if [[ $checkforrunningapt == "" ]]
-        then
-                echo -e "Apt not currently running"
-				echo -e ""
-        else
-                echo -e "${RED}Error:${NC} Apt is already running, aborting script"
-                exit
-fi
-
-echo -e "Checking/installing/updating other script dependency's"
-apt -y -qq install curl zip unzip nano ufw software-properties-common pwgen p7zip-full p7zip-rar
 
 #setup variables for passwords
 pass=`pwgen 14 1 b`
@@ -52,6 +37,64 @@ readonly UNDERLINE='\e[1;4m'
 readonly NC='\e[0m'
 readonly ERASEBACK='\e[1K'
 readonly BEGINLINE='\e[0G'
+
+#############################
+### Functions and Methods ###
+#############################
+
+# Console message functions
+function msg {
+  echo -e "${1}${nc}"
+}
+function msgc {
+  echo -e "${2}${1}${nc}"
+}
+
+# Gets the platform we are running on.
+function getPlt {
+  if [ "$(uname)" == "Darwin" ]; then
+      echo 1
+  elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]; then
+      echo 0
+  elif [ "$(expr substr $(uname -s) 1 10)" == "MINGW32_NT" ]; then
+      echo 1
+  elif [ "$(expr substr $(uname -s) 1 10)" == "MINGW64_NT" ]; then
+      echo 1
+  elif [ "$(expr substr $(uname -s) 1 6)" == "CYGWIN" ]; then
+      echo 1
+  else
+      echo 1
+  fi
+}
+
+#############################
+#############################
+
+if [ `getPlt` == 0 ]; then
+
+	msgc "Running on Linux.." $YELLOW
+
+else
+
+	msgc "Not running on Linux..." $RED
+	exit
+
+fi
+
+#pre-setup checks and dependencies installs
+checkforrunningapt=$(ps -e | grep apt)
+
+if [[ $checkforrunningapt == "" ]]
+        then
+                echo -e "Apt not currently running"
+				echo -e ""
+        else
+                echo -e "${RED}Error:${NC} Apt is already running, aborting script"
+                exit
+fi
+
+echo -e "Checking/installing/updating other script dependency's"
+apt -y -qq install curl zip unzip nano ufw software-properties-common pwgen p7zip-full p7zip-rar
 
 clear
 
@@ -422,7 +465,7 @@ function checkyesno() {
 
 }
 
-function checkipv6file() {
+function checknetcfgfile() {
 
 	local netdone=0
 	netcfg=/etc/netplan/01-netcfg.yaml
@@ -458,7 +501,7 @@ function checkipv6file() {
 	if [[ $netdone == 0 ]]
 		then
 			echo -e ""
-			echo -e "${RED}Error - network config file not found (01-netcfg.yaml or 00-installer-config.yaml)${NC}"
+			echo -e "${RED}Error - network config file not found (01-netcfg.yaml or 00-installer-config.yaml or 00-installer-config.yaml)${NC}"
 			echo -e ""
 			exit
 	fi
@@ -730,7 +773,7 @@ function install_mn() {
 				then
 					#set default IPv6
 
-					checkipv6file
+					checknetcfgfile
 
 					sed -i '1{/^$/d}' $netcfg
 					netconfcount=$(grep -c "/64" $netcfg)
@@ -1070,7 +1113,7 @@ function ipv6_setup() {
 			fi
 	fi
 
-	checkipv6file
+	checknetcfgfile
 
 	echo 0 > /proc/sys/net/ipv6/conf/all/disable_ipv6
 
