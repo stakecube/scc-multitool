@@ -44,10 +44,10 @@ readonly BEGINLINE='\e[0G'
 
 # Console message functions
 function msg {
-  echo -e "${1}${nc}"
+  echo -e "${1}${NC}"
 }
 function msgc {
-  echo -e "${2}${1}${nc}"
+  echo -e "${2}${1}${NC}"
 }
 
 # Gets the platform we are running on.
