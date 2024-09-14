@@ -67,9 +67,6 @@ function getPlt {
   fi
 }
 
-#############################
-#############################
-
 if [ `getPlt` == 0 ]; then
 
 	msgc "Running on Linux.." $YELLOW
@@ -80,6 +77,10 @@ else
 	exit
 
 fi
+
+#############################
+#############################
+
 
 #pre-setup checks and dependencies installs
 checkforrunningapt=$(ps -e | grep apt)
@@ -488,7 +489,20 @@ function checknetcfgfile() {
 		then
 			if [[ -f $netcfg ]]
 				then
-					netcfg=/etc/netplan/00-installer-config.yaml
+					netdone=1
+				else
+					netcfg=/etc/netplan/50-cloud-init.yaml
+					netdone=0
+			fi
+	fi
+
+#echo -e "$netdone"
+#echo -e "$netcfg"
+
+	if [[ $netdone == 0 ]] 
+		then
+			if [[ -f $netcfg ]]
+				then
 					netdone=1
 				else
 					netdone=0
@@ -500,9 +514,9 @@ function checknetcfgfile() {
 
 	if [[ $netdone == 0 ]]
 		then
-			echo -e ""
-			echo -e "${RED}Error - network config file not found (01-netcfg.yaml or 00-installer-config.yaml or 00-installer-config.yaml)${NC}"
-			echo -e ""
+			msg ""
+			msgc "Error - network config file not found (01-netcfg.yaml or 00-installer-config.yaml or 50-cloud-init.yaml)" $red
+			msg ""
 			exit
 	fi
 
