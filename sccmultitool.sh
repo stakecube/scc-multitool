@@ -110,7 +110,7 @@ fi
 
 function displayname() {
 
-cat << "EOF" 
+cat << "EOF"
    _____ _        _         _____      _
   / ____| |      | |       / ____|    | |
  | (___ | |_ __ _| | _____| |    _   _| |__   ___
@@ -248,6 +248,11 @@ function debugmodeonoffsub() {
 		local debugcount=$4
 		local grepcheckstatus=$5
 
+#		echo -e ""
+#		echo -e "debugcount=$debugcount"
+#		echo -e "debugcmd=$debugcmd"
+#		echo -e "grepcheckstatus=$grepcheckstatus"
+
 		if [[ $grepcheckstatus == 1 && $debugcount == 0 && $onoff == 1 ]]
 			then
 				echo -e ""
@@ -353,6 +358,8 @@ function debugmodeonoff() {
 
 		foundone=0
 
+		debugcmd="empty"
+
 		echo -e ""
 		echo -e "${YELLOW}Checking for $ticker MN's${NC}"
 		echo -e ""
@@ -369,9 +376,28 @@ function debugmodeonoff() {
 						return
 				fi
 
-				debugcount=$(grep -cFi 'debug' /home/$alias/.scc/stakecubecoin.conf)
 				debugcmd=$(grep -ix 'debug=[0-1]' /home/$alias/.scc/stakecubecoin.conf)
 				grepcheckstatus=$?
+
+				if [[ $debugcmd == "" && $grepcheckstatus == 1 ]]
+					then
+						debugcmd="empty"
+				fi
+
+				debugcount=$(grep -cFi 'debug' /home/$alias/.scc/stakecubecoin.conf)
+				debugcountstatus=$?
+
+#echo -e "debugcmd=$debugcmd"
+#echo -e "debugcount=$debugcount"
+#echo -e "debugcountstatus=$debugcountstatus"
+
+				if [[ $debugcount == 1 && $debugcountstatus == 1 ]]
+					then
+						debugcount=0
+				fi
+
+#echo -e "debugcount=$debugcount"
+
 
 				echo -e "found ${CYAN}$alias${NC}..."
 
@@ -389,6 +415,7 @@ function debugmodeonoff() {
 					foundone=1
 					errorpid=0
 					grepcheckstatus=""
+					debugcmd=""
 
 					echo -e "found ${CYAN}$i${NC}..."
 
@@ -396,10 +423,10 @@ function debugmodeonoff() {
 					debugcmd=$(grep -ix 'debug=[0-1]' /home/$i/.scc/stakecubecoin.conf)
 					grepcheckstatus=$?
 
-#					echo -e ""
-#					echo -e "$countdebug"
-#					echo -e "$debugcmd"
-#					echo -e "$grepcheckstatus"
+#echo -e ""
+#echo -e "$debugcount"
+#echo -e "$debugcmd"
+#echo -e "$grepcheckstatus"
 
 					if ! checkprocess $i
 						then
@@ -418,6 +445,7 @@ function debugmodeonoff() {
 							fi
 
 							debugmodeonoffsub $i $onoff $debugcmd $debugcount $grepcheckstatus
+
 					fi
 
 			fi
