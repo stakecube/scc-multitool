@@ -2144,9 +2144,9 @@ case $start in
 	14)	echo -e "Beginning Status Checks of Nodes"
 
 		foundone=0
-		updatechainfile=0
-		offlinerepairall=0
-		updateallnodes=0
+		updatechainfile="no"
+		offlinerepairall="no"
+		updateallnodes="no"
 		blockcompare=0
 
 		echo -e ""
