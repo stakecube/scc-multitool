@@ -2131,7 +2131,7 @@ case $start in
 								else
 									if [[ $nodeblock -le $upperlimit ]] && [[ $nodeblock -ge $lowerlimit ]]
 										then
-											echo -e "${CYAN}$i ${NC}sccnode: $nodeblock   explorer: $currentblock      ${YELLOW}Different block count from explorer$ within variance{NC}"
+											echo -e "${CYAN}$i ${NC}sccnode: $nodeblock   explorer: $currentblock      ${YELLOW}Different block count from explorer within variance${NC}"
 										else
 											echo -e "${CYAN}$i ${NC}sccnode: $nodeblock   explorer: $currentblock      ${RED}Different block count from explorer${NC}"
 									fi
