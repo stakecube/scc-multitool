@@ -2080,7 +2080,16 @@ case $start in
 	13)	echo -e "Beginning Explorer comparison tool"
 
 		foundone=0
+		currentblock=$(curl -s https://www.coinexplorer.net/api/v1/SCC/getblockcount | tr -dc '0-9' )
+		upperlimit=$((currentblock + 5))
+		lowerlimit=$((currentblock - 5))
 
+		echo -e ""
+		echo -e "${YELLOW}Explorer Block Height: ${CYAN}$currentblock${NC}"
+		echo -e "${YELLOW}Lower Block Height: ${CYAN}$lowerlimit${NC}"
+		echo -e "${YELLOW}Upper Block Height: ${CYAN}$upperlimit${NC}"
+		echo -e ""
+		
 		for i in $(ls /home/); do
 
 			if [[ $i == *scc* ]]
@@ -2106,7 +2115,6 @@ case $start in
 
 					if [[ $runnode == 0 ]]
 						then
-							currentblock=$(curl -s https://www.coinexplorer.net/api/v1/SCC/getblockcount)
 							nodeblock=0
 							nodeblock=$($i getblockcount)
 							nodestatus=$?
@@ -2121,7 +2129,12 @@ case $start in
 								then
 									echo -e "${CYAN}$i ${NC}sccnode: $nodeblock   explorer: $currentblock      ${CYAN}Same as explorer${NC}"
 								else
-									echo -e "${CYAN}$i ${NC}sccnode: $nodeblock   explorer: $currentblock      ${RED}Different block count from explorer${NC}"
+									if [[ $nodeblock -le $upperlimit ]] && [[ $nodeblock -ge $lowerlimit ]]
+										then
+											echo -e "${CYAN}$i ${NC}sccnode: $nodeblock   explorer: $currentblock      ${YELLOW}Different block count from explorer$ within variance{NC}"
+										else
+											echo -e "${CYAN}$i ${NC}sccnode: $nodeblock   explorer: $currentblock      ${RED}Different block count from explorer${NC}"
+									fi
 							fi
 						else
 							echo -e "${RED}Something is wrong with ${CYAN}$i${NC}"
