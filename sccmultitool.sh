@@ -577,8 +577,8 @@ function sleeprandomfilecheck() {
 					echo -e "${CYAN}Installing sleep/delay file${NC}"
 					cd /usr/local/bin
 					echo -e "#!/bin/bash" > $sleepnumberfile
-					echo -e "MINWAIT=10" >> $sleepnumberfile
-					echo -e "MAXWAIT=310" >> $sleepnumberfile
+					echo -e "MINWAIT=5" >> $sleepnumberfile
+					echo -e "MAXWAIT=35" >> $sleepnumberfile
 					echo -e 'sleep $((MINWAIT+RANDOM%(MAXWAIT-MINWAIT)))' >> $sleepnumberfile
 					chmod +x $sleepnumberfile
 			fi
