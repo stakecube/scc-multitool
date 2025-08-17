@@ -1728,6 +1728,15 @@ case $maintstart in
 		if [[ $eraseallnodes == "yes" ]]
 			then
 
+				echo -e "How long between node (re)starts in seconds?"
+				echo -e "Blank/Empty equals 120 seconds"
+				read secondsdelay
+
+				if [[ $secondsdelay != "" ]]
+					then
+						sleeptimerinsec=$secondsdelay
+				fi
+
 				for i in $(ls /home/); do
 
 					if [[ $i == *scc* ]]
