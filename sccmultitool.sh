@@ -1203,7 +1203,8 @@ function setup_swap() {
         else
                 echo -e "Generating swapfile, this may take some time depending on the size..."
                 echo -e "$(($1 * 1024 * 1024)) bytes swapfile"
-                dd if=/dev/zero of=/var/swapfile bs=1024 bs=1M count=$1 status=progress
+                fallocate -l $1M /var/swapfile
+#                dd if=/dev/zero of=/var/swapfile bs=1024 bs=1M count=$1 status=progress
                 chmod 600 /var/swapfile &> /dev/null
                 mkswap /var/swapfile &> /dev/null
                 swapon /var/swapfile &> /dev/null
