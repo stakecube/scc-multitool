@@ -1748,7 +1748,7 @@ case $maintstart in
 							echo -e "${YELLOW}Erasing debug log file and restarting ${CYAN}$i${NC}"
 
 							rm /home/$i/.scc/debug.log
-							systemctl restart $i --no-block
+							systemctl restart $i
 
 							echo -e ""
 							echo -e "${YELLOW}Restarted node and pausing $sleeptimerinsec seconds${NC}"
