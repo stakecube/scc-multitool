@@ -1748,7 +1748,8 @@ case $maintstart in
 							echo -e "${YELLOW}Erasing debug log file and restarting ${CYAN}$i${NC}"
 
 							rm /home/$i/.scc/debug.log
-							systemctl restart $i
+							systemctl stop $i
+							systemctl restart $i --no-block
 
 							echo -e ""
 							echo -e "${YELLOW}Restarted node and pausing $sleeptimerinsec seconds${NC}"
@@ -1768,6 +1769,7 @@ case $maintstart in
 				echo -e "${YELLOW}Erasing debug log file and restarting ${CYAN}$singlealias${NC}"
 
 				rm /home/$singlealias/.scc/debug.log
+				systemctl stop $singlealias
 				systemctl restart $singlealias --no-block
 
 				echo -e ""
@@ -1961,6 +1963,7 @@ case $start in
 										displaypause 5
 										systemctl start --no-block $i
 									else
+										systemctl stop $i
 										systemctl $stopstart --no-block $i
 								fi
 
