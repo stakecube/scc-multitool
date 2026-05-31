@@ -2394,7 +2394,7 @@ case $maintstart in
 		echo -e "${YELLOW}Collecting log for ${CYAN}$alias${NC}"
 		echo
 
-		debugzipfilename="${alias}_debug.zip"
+		debugzipfilename="${alias}_debug.7z"
 
 		rm ~/${debugzipfilename}
 		7za a -t7z -spf -- ~/${debugzipfilename} /home/$alias/.scc/debug.log 
@@ -2412,7 +2412,7 @@ case $maintstart in
 
     echo
 
-    debugzipfilename="SCC_nodes_debug_logs.zip"
+    debugzipfilename="SCC_nodes_debug_logs.7z"
     debugfilelist=""
     foundone=0
 
