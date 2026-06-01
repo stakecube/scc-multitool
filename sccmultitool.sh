@@ -2397,7 +2397,7 @@ case $maintstart in
 		debugzipfilename="${alias}_debug.7z"
 
 		rm ~/${debugzipfilename}
-		7za a -t7z -spf -- ~/${debugzipfilename} /home/$alias/.scc/debug.log 
+		7za a -t7z -spf -m9 -- ~/${debugzipfilename} /home/$alias/.scc/debug.log 
 
 		echo
 		echo -e "${YELLOW}Completed file name is ${CYAN}${debugzipfilename}${YELLOW} in user roots folder${NC}"
@@ -2437,7 +2437,7 @@ case $maintstart in
         echo -e "${CYAN}Zipping all debug logs${NC}"
 
         rm -f ~/"$debugzipfilename"
-        7za a -t7z -spf -- ~/"$debugzipfilename" $debugfilelist
+        7za a -t7z -spf -m9 -- ~/"$debugzipfilename" $debugfilelist
 
     elif [[ $foundone -eq 0 ]]; then
         echo
