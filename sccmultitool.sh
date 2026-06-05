@@ -15,6 +15,8 @@ snapshot='https://stakecubecoin.net/bootstrap.zip'
 port=40000
 rpcport=39999
 discord='https://discord.gg/xxjZzJE'
+netcfg="/etc/netplan/01-netcfg.yaml"
+
 
 #setup variables for passwords
 pass=`pwgen 14 1 b`
@@ -532,7 +534,6 @@ function debugmodeonoff() {
 
 function checknetcfgfile() {
     local netdone=0
-    local netcfg="/etc/netplan/01-netcfg.yaml"
 
     # Check 1st candidate
     if [[ $netdone -eq 0 ]]; then
