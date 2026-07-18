@@ -326,6 +326,18 @@ prompt_for_alias() {
     return 0
 }
 
+checkblskey() {
+    local key="${1,,}"    # convert to lowercase
+
+    if [[ ! "$key" =~ ^[0-9a-f]{64}$ ]]; then
+        echo -e "${RED}Invalid BLS private key.${NC}" >&2
+        echo -e "${YELLOW}It must be exactly 64 hexadecimal characters (0-9, a-f).${NC}" >&2
+        return 1
+    fi
+
+    return 0
+}
+
 function debugmodeonoffsub() {
     local alias=$1
     local onoff=$2
@@ -869,7 +881,9 @@ function install_mn() {
 
 	echo -e ""
 	echo -e "${YELLOW}${UNDERLINE}Enter the BLS secret key${NC}"
-	read -r key
+	read -r blskey
+
+  checkblskey blskey "$blskey" || return 1
 
 	echo -e ""
 	echo -e "${YELLOW}${UNDERLINE}Please enter a unique RPC port number. Default is ${CYAN}$rpcport${NC}"
