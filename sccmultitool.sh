@@ -241,7 +241,11 @@ prompt_yes_no() {
     echo -e "${YELLOW}${prompt}${NC}" >&2
     echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}" >&2
 
-    read -r response
+    if ! read -r response; then
+        echo >&2
+        echo -e "${RED}Input closed; aborting operation${NC}" >&2
+        return 1
+    fi
 
     case "${response,,}" in
         yes|no)
@@ -305,7 +309,10 @@ prompt_for_alias() {
     echo -e "${CYAN}Enter the masternode alias to repair${NC}" >&2
     echo >&2
 
-    read -r alias_input </dev/tty
+    if ! read -r alias_input; then
+        echo -e "${RED}Input closed; aborting operation${NC}" >&2
+        return 1
+    fi
 
     # Remove leading and trailing whitespace without xargs.
     alias_input="${alias_input#"${alias_input%%[![:space:]]*}"}"
@@ -547,9 +554,9 @@ function checknetcfgfile() {
     # Final validation
     if [[ $netdone -eq 0 ]]; then
         msg ""
-        msgc "Error - network config file not found (01-netcfg.yaml or 00-installer-config.yaml or 50-cloud-init.yaml)" "$red"
+        msgc "Error - network config file not found (01-netcfg.yaml or 00-installer-config.yaml or 50-cloud-init.yaml)" "$RED"
         msg ""
-        exit
+        return 1
     fi
 }
 
@@ -586,16 +593,13 @@ function chain_repair() {
 
 	local alias="$1"
 	local bootstrapchoice="$2"
-	local aliasvalidstatus
 	local chaindownload=0
 	local nodesblock=0
   local curl_output
   local currentblock
   local upperlimit lowerlimit
   local forcechainrepair
-  local chainrepair2
-  local node_home="/home/$alias"
-  local data_dir="$node_home/.${coindir}"
+  local checkchainrepair2
 
   # ------------------------------------------------------------------
   # 1. Resolve alias
@@ -618,7 +622,25 @@ function chain_repair() {
       echo -e "${RED}Failed to contact explorer API${NC}"
       return 1
   fi
+
   currentblock=$(printf '%s' "$curl_output" | tr -dc '0-9')
+
+  if ! currentblock=$(
+      curl -fsS --connect-timeout 10 --max-time 30 \
+          https://www.coinexplorer.net/api/v1/SCC/getblockcount
+  ); then
+      echo -e "${RED}Failed to contact explorer API${NC}"
+      return 1
+  fi
+
+  currentblock="${currentblock//$'\r'/}"
+  currentblock="${currentblock//$'\n'/}"
+
+  if [[ ! "$currentblock" =~ ^[0-9]+$ ]]; then
+      echo -e "${RED}Explorer returned an invalid block height: $currentblock${NC}"
+      return 1
+  fi
+
   upperlimit=$((currentblock + 5))
   lowerlimit=$((currentblock - 5))
 
@@ -694,14 +716,6 @@ function chain_repair() {
       return 1
   fi
 
-	if [[ $aliasvalidstatus != 0 ]];	then
-			echo
-			echo -e "${RED}Error: ${CYAN}$alias ${MAGENTA} does not exist or has other errors${NC}"
-			echo
-
-			exit 1
-	fi
-
 	displaypause 10
 
 
@@ -714,18 +728,34 @@ function chain_repair() {
 
 	echo
 
+  local node_home="/home/$alias"
+  local data_dir="$node_home/.${coindir}"
+
   cd "$node_home" || return 1
 
-  find "$data_dir" -type f \
-      \( -name '.lock' -o -name '.walletlock' \) \
-      -delete
+  if [[ "$data_dir" != "/home/$alias/.${coindir}" ||
+        ! -d "$data_dir" ||
+        -z "$alias" ]]; then
+      echo -e "${RED}Unsafe or missing data directory: $data_dir${NC}"
+      return 1
+  fi
 
-  find "$data_dir" \
+  if ! find "$data_dir" -type f \
+      \( -name '.lock' -o -name '.walletlock' \) \
+      -delete; then
+      echo -e "${RED}Failed removing lock files from $data_dir${NC}"
+      return 1
+  fi
+
+  if ! find "$data_dir" \
       -mindepth 1 \
       -maxdepth 1 \
       ! -name 'wallet.dat' \
       ! -name '*.conf' \
-      -delete
+      -delete; then
+      echo -e "${RED}Failed cleaning chain directory $data_dir${NC}"
+      return 1
+  fi
     
 	echo -e "${YELLOW}Downloading and/or Unzipping and replacing chain files for ${MAGENTA}$alias${NC}"
 
@@ -737,8 +767,16 @@ function chain_repair() {
 				else
 					echo
 					echo -e "${RED}File doesn't exist${NC}, ${YELLOW}downloading chain${NC}"
-					wget -nv --show-progress ${snapshot} -O ~/${coinname}.zip
-					7za x ~/${coinname}.zip
+
+      if ! wget -nv --show-progress "$snapshot" -O "$HOME/${coinname}.zip"; then
+          echo -e "${RED}Bootstrap download failed${NC}"
+          return 1
+      fi
+
+      if ! 7za x "$HOME/${coinname}.zip"; then
+          echo -e "${RED}Bootstrap extraction failed${NC}"
+          return 1
+      fi
 					echo
 					echo -e "${YELLOW}$coinname chain directory updated${NC}"
 			fi
@@ -751,17 +789,32 @@ function chain_repair() {
 			echo
 			echo -e "${YELLOW}Downloading bootstrap for offline use as well${NC}"
 			echo
-			wget -nv --show-progress ${snapshot} -O ~/${coinname}.zip
-			7za x ~/${coinname}.zip
+
+      if ! wget -nv --show-progress "$snapshot" -O "$HOME/${coinname}.zip"; then
+          echo -e "${RED}Bootstrap download failed${NC}"
+          return 1
+      fi
+
+      if ! 7za x "$HOME/${coinname}.zip"; then
+          echo -e "${RED}Bootstrap extraction failed${NC}"
+          return 1
+      fi
+
 			echo
 			echo -e "${YELLOW}$coinname chain directory updated${NC}"
 	fi
 
-	chown -R $alias:$alias /home/${alias}
+  chown -R -- "$alias:$alias" "$node_home" || return 1
+
 	echo
 	echo -e "${CYAN}Starting $alias after repair${NC}"
 	echo
-	systemctl start --no-block ${alias}.service
+
+  if ! systemctl start --no-block "${alias}.service"; then
+      echo -e "${RED}Failed to start ${CYAN}$alias${NC}"
+      return 1
+  fi
+
 	displaypause 10
 
 	echo
@@ -800,7 +853,8 @@ function install_mn() {
 	echo -e "${YELLOW}Above are the alias names for the installed masternodes${NC}"
 	echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
 	echo -e "${YELLOW}To use other tools you must include ${CYAN}$ticker${YELLOW} in the alias${NC}"
-	read alias
+	read -r alias
+  checkaliasvalidity "$alias" || return 1
 
 	if [[ -f /home/$alias/.${coindir}/${coinname}.conf ]]
 		then
@@ -808,17 +862,18 @@ function install_mn() {
 			echo -e "${RED}Error duplicate node name${NC}"
 			echo -e ""
 
-			exit
+		  return 1
 	fi
 
 	echo -e ""
 	echo -e "${YELLOW}${UNDERLINE}Enter the BLS secret key${NC}"
-	read key
+	read -r key
+
 	echo -e ""
 	echo -e "${YELLOW}${UNDERLINE}Please enter a unique RPC port number. Default is ${CYAN}$rpcport${NC}"
 	echo -e "${YELLOW}Examples: for ${CYAN}sccmn001 ${YELLOW}use ${CYAN}40010 ${YELLOW}and so on${NC}"
 	echo -e "${YELLOW}So it's 4(node number)0 (40010 for sccmn001)${NC}"
-	read rpcport
+	read -r rpcport
 
 	if [[ $bypassipv6setup == no ]]
 		then
@@ -984,8 +1039,17 @@ EOF
 		else
 			echo -e "${YELLOW}Installing node binaries for ${MAGENTA}$alias${NC}"
 			cd /usr/local/bin
-			wget -nv --show-progress ${binaries} -O ${coinname}.zip
-			7za x ${coinname}.zip
+
+      if ! wget -nv --show-progress "$snapshot" -O "$HOME/${coinname}.zip"; then
+          echo -e "${RED}Bootstrap download failed${NC}"
+          return 1
+      fi
+
+      if ! 7za x "$HOME/${coinname}.zip"; then
+          echo -e "${RED}Bootstrap extraction failed${NC}"
+          return 1
+      fi
+
 			chmod +x ${coinnamecli} ${coinnamed}
 			rm ${coinname}.zip
 			echo -e "${CYAN}$alias node binaries downloaded and installed${NC}"
@@ -1053,8 +1117,17 @@ EOF
 					echo -e "${YELLOW}$coinname local bootstrap directory updated${NC}"
 				else
 					echo -e "${RED}File doesn't exist${NC}, ${YELLOW}downloading chain${NC}"
-					wget -nv --show-progress ${snapshot} -O ${coinname}.zip
-					7za x  ${coinname}.zip
+
+          if ! wget -nv --show-progress "$snapshot" -O "$HOME/${coinname}.zip"; then
+              echo -e "${RED}Bootstrap download failed${NC}"
+              return 1
+          fi
+
+          if ! 7za x "$HOME/${coinname}.zip"; then
+              echo -e "${RED}Bootstrap extraction failed${NC}"
+              return 1
+          fi
+
 					echo -e "${YELLOW}$coinname chain directory updated${NC}"
 					echo -e "${YELLOW}Removing downloaded temp file${NC}"
 					rm /home/${alias}/${coinname}.zip
@@ -1062,8 +1135,17 @@ EOF
 		else
 			if [[ $chaindownload == yes ]]
 				then
-					wget -nv --show-progress ${snapshot} -O ${coinname}.zip
-					7za x ${coinname}.zip
+
+          if ! wget -nv --show-progress "$snapshot" -O "$HOME/${coinname}.zip"; then
+              echo -e "${RED}Bootstrap download failed${NC}"
+              return 1
+          fi
+
+          if ! 7za x "$HOME/${coinname}.zip"; then
+              echo -e "${RED}Bootstrap extraction failed${NC}"
+              return 1
+          fi
+
 					echo -e "${YELLOW}$coinname chain directory setup${NC}"
 					echo -e "${YELLOW}Removing downloaded temp file${NC}"
 					rm /home/${alias}/${coinname}.zip
@@ -1208,8 +1290,17 @@ function wallet_update_all() {
     # ----- Download fresh binaries -------------------------------------------------
     pushd /usr/local/bin >/dev/null || exit 1
     rm -f "${coinnamecli}" "${coinnamed}"
-    wget -nv --show-progress "${binaries}" -O "${coinname}.zip"
-    7za x "${coinname}.zip"
+
+    if ! wget -nv --show-progress "$snapshot" -O "$HOME/${coinname}.zip"; then
+        echo -e "${RED}Bootstrap download failed${NC}"
+        return 1
+    fi
+
+    if ! 7za x "$HOME/${coinname}.zip"; then
+        echo -e "${RED}Bootstrap extraction failed${NC}"
+        return 1
+    fi
+
     chmod +x "${coinnamecli}" "${coinnamed}"
     rm -f "${coinname}.zip"
     popd >/dev/null
@@ -1256,88 +1347,6 @@ function wallet_update_all() {
 
     echo -e "${CYAN}Wallet update tool finished${NC}"
     exit 0
-}
-
-
-# --------------------------------------------------------------
-# 3)  Wallet update tool – update the binaries and restart all
-#     SCC masternodes on the machine.
-# --------------------------------------------------------------
-function wallet_update_all_nodes() {
-    echo -e "${YELLOW}Starting Wallet update tool for ${CYAN}All ${ticker}${YELLOW} nodes${NC}"
-    echo
-
-    # -----------------------------------------------------------------
-    # Download the new binaries
-    # -----------------------------------------------------------------
-    pushd /usr/local/bin >/dev/null || { echo "Cannot cd to /usr/local/bin"; exit 1; }
-
-    # Remove any old binaries (ignore “file not found” errors)
-    rm -f "${coinnamecli}" "${coinnamed}"
-
-    echo -e "${YELLOW}Downloading new binaries…${NC}"
-    if ! wget -nv --show-progress "${binaries}" -O "${coinname}.zip"; then
-        echo -e "${RED}Failed to download ${binaries}${NC}"
-        popd >/dev/null
-        exit 1
-    fi
-
-    echo -e "${YELLOW}Extracting archive…${NC}"
-    if ! 7za x "${coinname}.zip"; then
-        echo -e "${RED}Failed to extract ${coinname}.zip${NC}"
-        popd >/dev/null
-        exit 1
-    fi
-
-    chmod +x "${coinnamecli}" "${coinnamed}"
-    rm -f "${coinname}.zip"
-
-    popd >/dev/null                 # back to previous directory
-    cd /root || exit 1
-    displaypause 15
-
-    # -----------------------------------------------------------------
-    # How long should we wait between node restarts?
-    # -----------------------------------------------------------------
-    echo -e "How long between node (re)starts in seconds?"
-    echo -e "Blank/Empty equals 120 seconds"
-    read -r secondsdelay
-
-    # If the user entered a number, use it; otherwise keep the default.
-    sleeptimerinsec=${secondsdelay:-120}
-
-    # -----------------------------------------------------------------
-    # Walk through every home directory that looks like an SCC node
-    # -----------------------------------------------------------------
-    for homedir in /home/*; do
-        i=$(basename "$homedir")        # strip the leading path
-
-        echo
-        echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} MN's${NC}"
-        echo -e "${YELLOW}found ${CYAN}$i${NC}..."
-        echo
-
-        # Only act on directories that match the SCC naming pattern
-        if [[ $i != *scc* ]]; then
-            echo -e "${YELLOW}No ${CYAN}$ticker${YELLOW} MN's found to update${NC}"
-            continue
-        fi
-
-        # -------------------------------------------------------------
-        # Stop → start the node
-        # -------------------------------------------------------------
-        echo -e "${YELLOW}Restarting ${CYAN}$i${YELLOW}…${NC}"
-        systemctl stop "$i"
-        displaypause 3
-        systemctl start --no-block "$i"
-
-        echo -e "${CYAN}$i${YELLOW} updated and restarted${NC}"
-        echo
-        echo -e "${YELLOW}Pausing for ${sleeptimerinsec} seconds to let ${CYAN}$i${YELLOW} settle${NC}"
-        displaypause "$sleeptimerinsec"
-    done
-
-    echo -e "${CYAN}Wallet update tool finished${NC}"
 }
 
 # --------------------------------------------------------------
@@ -1747,7 +1756,13 @@ function check_status_nodes() {
                     offlinechainfilebuild
                 else
                     echo -e "${CYAN}Downloading updated bootstrap...${NC}"
-                    cd /root && wget -nv --show-progress "${snapshot}" -O "${coinname}.zip"
+                    cd $HOME
+
+                    if ! wget -nv --show-progress "$snapshot" -O "$HOME/${coinname}.zip"; then
+                        echo -e "${RED}Bootstrap download failed${NC}"
+                        return 1
+                    fi
+
                     echo -e ""
                 fi
             fi
@@ -1863,25 +1878,17 @@ function explorer_compare() {
                 return 1
             fi
 
-            nodestatus=$?
-
-        else
-            nodestatus=1        # keep the “failed” flag set
         fi
 
         # -----------------------------------------------------------------
         # Compare node block height with explorer height.
         # -----------------------------------------------------------------
-        if [[ $nodestatus -eq 0 && $runnode -eq 0 ]]; then
-            if [[ $currentblock -eq $nodeblock ]]; then
-                echo -e "${CYAN}$i ${NC}sccnode: $nodeblock   explorer: $currentblock  ${CYAN}Same as explorer${NC}"
-            elif (( nodeblock <= upperlimit && nodeblock >= lowerlimit )); then
-                echo -e "${CYAN}$i ${NC}sccnode: $nodeblock   explorer: $currentblock  ${YELLOW}Different block count from explorer within variance${NC}"
-            else
-                echo -e "${CYAN}$i ${NC}sccnode: $nodeblock   explorer: $currentblock  ${RED}Different block count from explorer${NC}"
-            fi
+        if [[ $currentblock -eq $nodeblock ]]; then
+            echo -e "${CYAN}$i ${NC}sccnode: $nodeblock   explorer: $currentblock  ${CYAN}Same as explorer${NC}"
+        elif (( nodeblock <= upperlimit && nodeblock >= lowerlimit )); then
+            echo -e "${CYAN}$i ${NC}sccnode: $nodeblock   explorer: $currentblock  ${YELLOW}Different block count from explorer within variance${NC}"
         else
-            echo -e "${RED}Something is wrong with ${CYAN}$i${NC}"
+            echo -e "${CYAN}$i ${NC}sccnode: $nodeblock   explorer: $currentblock  ${RED}Different block count from explorer${NC}"
         fi
 
         echo -e ""
@@ -1918,24 +1925,33 @@ explorer_compare_and_repair() {
     # ------------------------------------------------------------------
     # 1. Fetch explorer block height
     # ------------------------------------------------------------------
-    curl_output=$(curl --silent --max-time 10 \
-                       'https://www.coinexplorer.net/api/v1/SCC/getblockcount')
-
+    curl_output=$(curl -s https://www.coinexplorer.net/api/v1/SCC/getblockcount)
     if [[ -z "$curl_output" ]]; then
-        echo -e "${RED}Failed to contact explorer API — aborting${NC}"
+        echo -e "${RED}Failed to contact explorer API${NC}"
         return 1
     fi
 
     currentblock=$(printf '%s' "$curl_output" | tr -dc '0-9')
 
-    if [[ -z "$currentblock" ]]; then
-        echo -e "${RED}Explorer returned unexpected response: ${curl_output}${NC}"
+    if ! currentblock=$(
+        curl -fsS --connect-timeout 10 --max-time 30 \
+            https://www.coinexplorer.net/api/v1/SCC/getblockcount
+    ); then
+        echo -e "${RED}Failed to contact explorer API${NC}"
         return 1
     fi
 
-    upperlimit=$(( currentblock + 5 ))
-    lowerlimit=$(( currentblock - 5 ))
+    currentblock="${currentblock//$'\r'/}"
+    currentblock="${currentblock//$'\n'/}"
 
+    if [[ ! "$currentblock" =~ ^[0-9]+$ ]]; then
+        echo -e "${RED}Explorer returned an invalid block height: $currentblock${NC}"
+        return 1
+    fi
+
+    upperlimit=$((currentblock + 5))
+    lowerlimit=$((currentblock - 5))
+ 
     echo -e "${YELLOW}Explorer Block Height: ${CYAN}${currentblock}${NC}"
     echo -e "${YELLOW}Lower Block Height:    ${CYAN}${lowerlimit}${NC}"
     echo -e "${YELLOW}Upper Block Height:    ${CYAN}${upperlimit}${NC}"
@@ -2047,9 +2063,8 @@ explorer_compare_and_repair() {
         #     (skipped if user already said repair all)
         # --------------------------------------------------------------
         if [[ "$updateallnodes" != "yes" ]]; then
-            repairnode=$(prompt_yes_no \
-                "${YELLOW}Chain repair ${CYAN}${i}${YELLOW}?${NC}")
-            echo
+            prompt_yes_no repairnode "${YELLOW}Chain repair ${CYAN}${i}${YELLOW}?${NC}" || return 1
+    	      echo
 
             if [[ "$repairnode" == "yes" ]]; then
                 prompt_yes_no updateallnodes "${YELLOW}Repair ALL out-of-sync nodes without asking again?${NC}" || return 1
@@ -2161,8 +2176,17 @@ case $prerelease in
 			echo -e ""
 			cd /usr/local/bin
 			rm $coinnamecli $coinnamed
-			wget -nv --show-progress ${prereleasebinaries} -O ${coinname}.zip
-			7za x ${coinname}.zip
+
+      if ! wget -nv --show-progress "$snapshot" -O "$HOME/${coinname}.zip"; then
+          echo -e "${RED}Bootstrap download failed${NC}"
+          return 1
+      fi
+
+      if ! 7za x "$HOME/${coinname}.zip"; then
+          echo -e "${RED}Bootstrap extraction failed${NC}"
+          return 1
+      fi
+
 			chmod +x ${coinnamecli} ${coinnamed}
 			rm ${coinname}.zip
 			cd /root
