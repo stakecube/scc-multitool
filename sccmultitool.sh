@@ -232,7 +232,16 @@ function checkprocess() {
     fi
 }
 
+is_variable_name() {
+    [[ "$1" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]
+}
+
 prompt_yes_no() {
+    if [[ $# -lt 2 ]] || ! is_variable_name "$1"; then
+        echo "prompt_yes_no: invalid destination variable" >&2
+        return 2
+    fi
+
     local -n result_var="$1"
     local prompt="$2"
     local response
@@ -264,6 +273,11 @@ prompt_yes_no() {
 }
 
 checkaliasvalidity() {
+    if [[ $# -lt 2 ]] || ! is_variable_name "$1"; then
+        echo "checkaliasvalidity: invalid destination variable" >&2
+        return 2
+    fi
+
     local aliasname="$1"
     local mode="${2:-require_existing}"
     local conf_file="/home/$aliasname/.${coindir}/${coinname}.conf"
@@ -293,6 +307,11 @@ checkaliasvalidity() {
 }
 
 prompt_for_alias() {
+    if [[ $# -lt 2 ]] || ! is_variable_name "$1"; then
+        echo "prompt_for_alias: invalid destination variable" >&2
+        return 2
+    fi
+
     local -n result_var="$1"
     local supplied_alias="${2:-}"
     local alias_input
@@ -618,6 +637,7 @@ function chain_repair() {
 
 	local alias="$1"
 	local bootstrapchoice="$2"
+	local update_all_nodes="${3:-no}"
 	local chaindownload=0
 	local nodesblock=0
   local curl_output
@@ -679,30 +699,44 @@ function chain_repair() {
       return 1
   fi
 
-  if [[ $currentblock -eq $nodesblock ]]; then
-      echo -e "${CYAN}$i ${NC}sccnode: $nodesblock   explorer: $currentblock      ${CYAN}Same as explorer${NC}"
-		  echo
-			echo -e "${MAGENTA}Chain Repair is not needed for this node"
-		  echo
-
-    	prompt_yes_no forcechainrepair "${YELLOW}Do you wish to still do the chain repair?" || return 1
-					
-		  if [[ $forcechainrepair == "no" ]]; then
-			   	return 0
-    	fi
-
-  elif [[ $nodesblock -le $upperlimit && $nodesblock -ge $lowerlimit ]]; then
-      echo -e "${CYAN}$i ${NC}sccnode: $nodesblock   explorer: $currentblock      ${YELLOW}Different block count from explorer within variance${NC}"
+  if [[ "$currentblock" -eq "$nodesblock" ]]; then
+      echo -e "${CYAN}${alias}${NC} sccnode: $nodesblock explorer: $currentblock ${CYAN}Same as explorer${NC}"
       echo
-		  echo -e "${CYAN}Continuing with repair of node${NC}"
-			echo
-  else
-      echo -e "${CYAN}$i ${NC}sccnode: $nodesblock   explorer: $currentblock      ${RED}Different block count from explorer${NC}"
-  fi
+      echo -e "${MAGENTA}Chain repair is not needed for this node${NC}"
+      echo
 
-	echo -e "${RED}Something is wrong with ${CYAN}$alias${NC}"
-	echo -e "${YELLOW}Continuing repair${NC}"
-	echo
+      prompt_yes_no forcechainrepair \
+          "Do you wish to force the chain repair anyway?" || return 1
+
+      [[ "$forcechainrepair" == "yes" ]] || return 0
+
+  elif [[ "$nodesblock" -le "$upperlimit" &&
+          "$nodesblock" -ge "$lowerlimit" ]]; then
+      echo -e "${CYAN}${alias}${NC} sccnode: $nodesblock explorer: $currentblock ${YELLOW}Within allowed variance${NC}"
+      echo
+      echo -e "${YELLOW}Chain repair is normally not required${NC}"
+      echo
+
+      if [[ "${updateallnodes:-no}" == "no" ]]; then
+          prompt_yes_no checkchainrepair2 \
+              "Do you wish to repair this node anyway?" || return 1
+
+          [[ "$checkchainrepair2" == "yes" ]] || return 0
+      fi
+
+  else
+      echo -e "${CYAN}${alias}${NC} sccnode: $nodesblock explorer: $currentblock ${RED}Outside allowed variance${NC}"
+      echo
+      echo -e "${RED}The node appears to require a chain repair${NC}"
+      echo
+
+      if [[ "${updateallnodes:-no}" == "no" ]]; then
+          prompt_yes_no checkchainrepair2 \
+              "Continue with the chain repair?" || return 1
+
+          [[ "$checkchainrepair2" == "yes" ]] || return 0
+      fi
+  fi
 
 	if [[ $updateallnodes == "no" ]]; then
       prompt_yes_no checkchainrepair2 "${YELLOW}Do you wish to still chain repair?${NC}" || return 1
@@ -729,7 +763,7 @@ function chain_repair() {
 	displaypause 10
 
 
-	if [[ $bootstrapchoice != "yes" ]];	 then
+	if [[ "$bootstrapchoice" != "yes" ]];	 then
 			echo
 		  prompt_yes_no bootstrapchoice "${YELLOW}Use offline bootstrap?${NC}" || return 1
 		else
@@ -769,26 +803,45 @@ function chain_repair() {
     
 	echo -e "${YELLOW}Downloading and/or Unzipping and replacing chain files for ${MAGENTA}$alias${NC}"
 
-	if [[ $bootstrapchoice == "yes" ]];  then
-			sccfile=~/${coinname}.zip
+  local bootstrap_file="$HOME/${coinname}.zip"
+
+  if [[ "$bootstrapchoice" == "yes" ]]; then
+  fi
+
+	if [[ "$bootstrapchoice" == "yes" ]];  then
+			sccfile="~/${coinname}.zip"
 			if test -e "$sccfile";  then
-					7za x ~/${coinname}.zip
+          if ! 7za x "$HOME/${coinname}.zip"; then
+              echo -e "${RED}Bootstrap extraction failed.${NC}"
+              echo -e "${YELLOW}${alias} remains stopped because its chain data was already removed.${NC}"
+              return 1
+          fi
 					echo -e "${YELLOW}$coinname local chain directory updated${NC}"
-				else
+      else
 					echo
 					echo -e "${RED}File doesn't exist${NC}, ${YELLOW}downloading chain${NC}"
 
-      if ! wget -nv --show-progress "$snapshot" -O "$HOME/${coinname}.zip"; then
-          echo -e "${RED}Bootstrap download failed${NC}"
-          return 1
-      fi
+          if [[ ! -f "$bootstrap_file" ]]; then
+              if ! wget -nv --show-progress "$snapshot" -O "${bootstrap_file}.part"; then
+                  rm -f -- "${bootstrap_file}.part"
+                  echo -e "${RED}Bootstrap download failed; existing chain was not removed${NC}"
+                  return 1
+              fi
 
-      if ! 7za x "$HOME/${coinname}.zip"; then
-          echo -e "${RED}Bootstrap extraction failed${NC}"
-          return 1
-      fi
-					echo
-					echo -e "${YELLOW}$coinname chain directory updated${NC}"
+              mv -- "${bootstrap_file}.part" "$bootstrap_file" || return 1
+          fi
+
+          if ! 7za t "$bootstrap_file" >/dev/null; then
+              echo -e "${RED}Bootstrap archive failed verification${NC}"
+              return 1
+          fi
+
+          if ! 7za x "$HOME/${coinname}.zip"; then
+              echo -e "${RED}Bootstrap extraction failed${NC}"
+              return 1
+          fi
+					    echo
+					    echo -e "${YELLOW}$coinname chain directory updated${NC}"
 			fi
 		else
 			echo
@@ -802,6 +855,11 @@ function chain_repair() {
 
       if ! wget -nv --show-progress "$snapshot" -O "$HOME/${coinname}.zip"; then
           echo -e "${RED}Bootstrap download failed${NC}"
+          return 1
+      fi
+
+      if ! 7za t "$bootstrap_file" >/dev/null; then
+          echo -e "${RED}Bootstrap archive failed verification${NC}"
           return 1
       fi
 
@@ -863,17 +921,23 @@ function install_mn() {
 	echo -e "${YELLOW}Above are the alias names for the installed masternodes${NC}"
 	echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
 	echo -e "${YELLOW}To use other tools you must include ${CYAN}$ticker${YELLOW} in the alias${NC}"
-	read -r alias
+
+  if ! read -r alias; then
+      echo -e "${RED}Input closed; aborting installation${NC}" >&2
+      return 1
+  fi
+
   checkaliasvalidity "$alias" allow_new || return 1
 
-	if [[ -f /home/$alias/.${coindir}/${coinname}.conf ]]
-		then
-			echo -e ""
-			echo -e "${RED}Error duplicate node name${NC}"
-			echo -e ""
+  local node_conf="/home/$alias/.${coindir}/${coinname}.conf"
 
-		  return 1
-	fi
+  if [[ -f "$node_conf" ]]; then
+      echo
+      echo -e "${RED}Error: duplicate node name${NC}"
+      echo
+      return 1
+  fi
+
 
 	echo -e ""
 	echo -e "${YELLOW}${UNDERLINE}Enter the BLS secret key${NC}"
@@ -897,15 +961,8 @@ function install_mn() {
 
 			#IPv4/v6 choice and setup
 			echo -e ""
-#			echo -e "${YELLOW}Would you like to setup with an IPv6 address?{$NC}"
-#			echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
-#			read ipchoice
 
-#			checkyesno $ipchoice
-
-      prompt_yes_no ipchoice "${YELLOW}Would you like to setup with an IPv6 address?{$NC}" || return 1
-
-#			echo -e "Passed yes/no check"
+      prompt_yes_no ipchoice "${YELLOW}Would you like to setup with an IPv6 address?${NC}" || return 1
 
 			#script network config dependency
 			echo -e ""
@@ -917,13 +974,15 @@ function install_mn() {
 
   				checknetcfgfile || return 1
 
-					sed -i '1{/^$/d}' $netcfg
-					netconfcount=$(grep -c "/64" $netcfg)
+          sed -i '1{/^$/d}' "$netcfg" || return 1
+          netconfcount=$(grep -cF '/64' "$netcfg")
+
 					linenumber1=$(grep -nF '/64' "$netcfg" | cut -d: -f1 | head -n 1)
-					linenumber2=$(( $linenumber1+$netconfcount ))
+					linenumber2=$((linenumber1 + netconfcount))
 #					echo -e "$linenumber1"
 #					echo -e "$linenumber2"
-					dipv6=$(sed -n "$linenumber1"p $netcfg)
+          dipv6=$(sed -n "${linenumber1}p" "$netcfg")
+
 					spaces=$(echo -e "$dipv6" | tr -cd ' \t' | wc -c)
 					spaces=$(( $spaces-2 ))
 					ipv6test="$(echo $dipv6 | grep -E '.{0,4}\/64')"
@@ -1128,11 +1187,16 @@ EOF
 	if [[ $bootstrapchoice == yes ]] && [[ $chaindownload == 0 ]]
 		then
 			sccfile=~/${coinname}.zip
-			if test -e "$sccfile"
-				then
-					7za x ~/${coinname}.zip
-					echo -e "${YELLOW}$coinname local bootstrap directory updated${NC}"
-				else
+			if [[ -f "$sccfile" ]]; then
+          if ! 7za x "$sccfile"; then
+              echo -e "${RED}Bootstrap extraction failed${NC}"
+              return 1
+          fi
+
+          echo -e "${YELLOW}${coinname} local chain directory updated${NC}"
+    
+          echo -e "${YELLOW}$coinname local bootstrap directory updated${NC}"
+      else
 					echo -e "${RED}File doesn't exist${NC}, ${YELLOW}downloading chain${NC}"
 
           if ! wget -nv --show-progress "$snapshot" -O "$HOME/${coinname}.zip"; then
@@ -1314,7 +1378,8 @@ function wallet_update_all() {
     fi
 
     if ! 7za x "$HOME/${coinname}.zip"; then
-        echo -e "${RED}Bootstrap extraction failed${NC}"
+        echo -e "${RED}Bootstrap extraction failed.${NC}"
+        echo -e "${YELLOW}${alias} remains stopped because its chain data was already removed.${NC}"
         return 1
     fi
 
@@ -1803,9 +1868,9 @@ function check_status_nodes() {
         # Perform the actual repair
         # -----------------------------------------------------------------
         if [[ $offlinerepairall == "yes" ]]; then
-            chain_repair "$i" "yes" || return 1
+            chain_repair "$i" "yes" "$updateallnodes" || return 1
         else
-            chain_repair "$i" "no" || return 1
+            chain_repair "$i" "no" "$updateallnodes" || return 1
         fi
 
         echo -e ""
@@ -2080,9 +2145,9 @@ m        if ! nodesblock=$("$alias_command" getblockcount); then
         # --------------------------------------------------------------
         if [[ "$repairnode" == "yes" ]]; then
             if [[ "$offlinerepairall" == "yes" ]]; then
-                chain_repair "$i" "yes" || return 1
+                chain_repair "$i" "yes" "$updateallnodes" || return 1
             else
-                chain_repair "$i" "no" || return 1
+                chain_repair "$i" "no" "$updateallnodes" || return 1
             fi
         else
             echo -e "${YELLOW}Skipping repair for ${CYAN}${i}${NC}"
@@ -2178,13 +2243,13 @@ case $prerelease in
 			cd /usr/local/bin
 			rm $coinnamecli $coinnamed
 
-      if ! wget -nv --show-progress "$snapshot" -O "$HOME/${coinname}.zip"; then
+      if ! wget -nv --show-progress ${prereleasebinaries} -O ${coinname}.zip; then
           echo -e "${RED}Bootstrap download failed${NC}"
           return 1
       fi
 
-      if ! 7za x "$HOME/${coinname}.zip"; then
-          echo -e "${RED}Bootstrap extraction failed${NC}"
+      if ! 7za x "${coinname}.zip"; then
+          echo -e "${RED}Extraction failed.${NC}"
           return 1
       fi
 
