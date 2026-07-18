@@ -265,6 +265,7 @@ prompt_yes_no() {
 
 function checkaliasvalidity() {
     local aliasname="$1"
+    local newnode="$2"
     local confFile="/home/$aliasname/.${coindir}/${coinname}.conf"
 
     # Basic sanity-check: only allow alphanumeric + hyphen/underscore to
@@ -274,6 +275,10 @@ function checkaliasvalidity() {
         echo -e "${RED}Invalid alias '${aliasname}' — aborting${NC}" >&2
         echo
         return 1
+    fi
+
+    if [[ "$newnode" == "yes" ]]; then
+        return 0
     fi
 
     if [[ ! -f "$confFile" ]]; then
@@ -289,7 +294,7 @@ prompt_for_alias() {
     local alias_input
 
     if [[ -n "$supplied_alias" ]]; then
-        checkaliasvalidity "$supplied_alias" || return 1
+        checkaliasvalidity "$supplied_alias" "no" || return 1
         result_var="$supplied_alias"
         return 0
     fi
@@ -320,7 +325,7 @@ prompt_for_alias() {
     alias_input="${alias_input#"${alias_input%%[![:space:]]*}"}"
     alias_input="${alias_input%"${alias_input##*[![:space:]]}"}"
 
-    checkaliasvalidity "$alias_input" || return 1
+    checkaliasvalidity "$alias_input" "no" || return 1
 
     result_var="$alias_input"
     return 0
@@ -868,7 +873,7 @@ function install_mn() {
 	echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
 	echo -e "${YELLOW}To use other tools you must include ${CYAN}$ticker${YELLOW} in the alias${NC}"
 	read -r alias
-  checkaliasvalidity "$alias" || return 1
+  checkaliasvalidity "$alias" "yes" || return 1
 
 	if [[ -f /home/$alias/.${coindir}/${coinname}.conf ]]
 		then
@@ -1539,7 +1544,7 @@ function mn_uninstall() {
     # ---------------------------------------------------------
     # Verify the alias points to a valid node configuration
     # ---------------------------------------------------------
-    checkaliasvalidity "$alias" || exit 1
+    checkaliasvalidity "$alias" "no" || exit 1
 
     # ---------------------------------------------------------
     # Stop, disable and delete the system‑d service
