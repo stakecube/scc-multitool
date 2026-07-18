@@ -17,12 +17,6 @@ rpcport=39999
 discord='https://discord.gg/xxjZzJE'
 netcfg="/etc/netplan/01-netcfg.yaml"
 
-
-#setup variables for passwords
-pass=`pwgen 14 1 b`
-rpcuser=`pwgen 14 1 b`
-rpcpass=`pwgen 36 1 b`
-
 #color variables
 readonly GRAY='\e[1;30m'
 readonly DARKRED='\e[0;31m'
@@ -71,11 +65,38 @@ fi
 
 
 echo -e "Checking/installing/updating other script dependency's"
-apt -y -qq install curl zip unzip nano ufw software-properties-common pwgen p7zip-full p7zip-rar
+if ! apt -y -qq install \
+    curl zip unzip nano ufw software-properties-common \
+    pwgen p7zip-full p7zip-rar; then
+    echo -e "${RED}Dependency installation failed${NC}"
+    exit 1
+fi
+
+#setup variables for passwords
+pass=`pwgen 14 1 b` || exit 1
+rpcuser=`pwgen 14 1 b` || exit 1
+rpcpass=`pwgen 36 1 b` || exit 1
 
 clear
 
-sccmultitool_update=$(curl -s https://raw.githubusercontent.com/stakecube/SCC-Multitool/master/sccmultitool.sh)
+if sccmultitool_update=$(
+    curl -fsS --connect-timeout 10 --max-time 60 \
+        https://raw.githubusercontent.com/stakecube/SCC-Multitool/master/sccmultitool.sh
+); then
+    if [[ -n "$sccmultitool_update" ]]; then
+        if [[ -f "$HOME/sccmultitool.sh" ]] &&
+           ! cmp -s <(printf '%s\n' "$sccmultitool_update") \
+                   "$HOME/sccmultitool.sh"; then
+            updatesccmultitool=1
+        else
+            updatesccmultitool=0
+        fi
+    else
+        updatesccmultitool=0
+    fi
+else
+    updatesccmultitool=0
+fi
 
 if [[ $(cmp <(echo "$sccmultitool_update") ~/sccmultitool.sh) ]] && [[ $(diff <(echo "$sccmultitool_update") ~/sccmultitool.sh) ]]
 	then
@@ -155,24 +176,22 @@ function displaypause() {
     echo -e "${YELLOW}Press any key to abort countdown and continue${NC}"
 
 		while [ $delaycount -ge 0 ]
-                 do
-                        echo -en "${GREEN}Countdown ${NC}$delaycount"
-                        sleep 1
-                        echo -en "${ERASEBACK}${NC}${BEGINLINE}${NC}"
-						read -n 1 -t 0.05 $anykey
-						anykeystatus=$?
-						if [[ $anykeystatus -le 127 ]]
-							then
-								echo -en "${ERASEBACK}${NC}${BEGINLINE}${NC}"
-								return
-						fi
+        do
+          echo -en "${GREEN}Countdown ${NC}$delaycount"
+          sleep 1
+          echo -en "${ERASEBACK}${NC}${BEGINLINE}${NC}"
 
-                        delaycount=$(($delaycount - 1))
-                done
+          if read -r -n 1 -t 0.05 anykey; then
+             echo -en "${ERASEBACK}${NC}${BEGINLINE}${NC}"
+             return 0 
+          fi
 
-        echo
+       delaycount=$(($delaycount - 1))
+    done
 
-        return
+    echo
+
+    return
 
 }
 
@@ -273,8 +292,8 @@ prompt_yes_no() {
 }
 
 checkaliasvalidity() {
-    if [[ $# -lt 2 ]] || ! is_variable_name "$1"; then
-        echo "checkaliasvalidity: invalid destination variable" >&2
+    if [[ $# -lt 1 ]]; then
+        echo "checkaliasvalidity: alias argument missing" >&2
         return 2
     fi
 
@@ -307,8 +326,8 @@ checkaliasvalidity() {
 }
 
 prompt_for_alias() {
-    if [[ $# -lt 2 ]] || ! is_variable_name "$1"; then
-        echo "prompt_for_alias: invalid destination variable" >&2
+    if [[ $# -lt 1 ]] || ! is_variable_name "$1"; then
+	      echo "prompt_for_alias: invalid destination variable" >&2
         return 2
     fi
 
@@ -551,96 +570,95 @@ function debugmodeonoff() {
     fi
 }
 
-function checknetcfgfile() {
-    local netdone=0
+checknetcfgfile() {
+    local candidate
 
-    # Check 1st candidate
-    if [[ $netdone -eq 0 ]]; then
-        if [[ -f "$netcfg" ]]; then
-            netdone=1
-        else
-            netcfg="/etc/netplan/00-installer-config.yaml"
-            netdone=0
+    for candidate in \
+        /etc/netplan/01-netcfg.yaml \
+        /etc/netplan/00-installer-config.yaml \
+        /etc/netplan/50-cloud-init.yaml
+    do
+        if [[ -f "$candidate" ]]; then
+            netcfg="$candidate"
+            return 0
         fi
-    fi
+    done
 
-    # Debugging output
-    # echo -e "$netdone"
-    # echo -e "$netcfg"
-
-    # Check 2nd candidate
-    if [[ $netdone -eq 0 ]]; then
-        if [[ -f "$netcfg" ]]; then
-            netdone=1
-        else
-            netcfg="/etc/netplan/50-cloud-init.yaml"
-            netdone=0
-        fi
-    fi
-
-    # Debugging output
-    # echo -e "$netdone"
-    # echo -e "$netcfg"
-
-    # Check 3rd candidate
-    if [[ $netdone -eq 0 ]]; then
-        if [[ -f "$netcfg" ]]; then
-            netdone=1
-        else
-            netdone=0
-        fi
-    fi
-
-    # Debugging output
-    # echo -e "$netdone"
-    # echo -e "$netcfg"
-
-    # Final validation
-    if [[ $netdone -eq 0 ]]; then
-        msg ""
-        msgc "Error - network config file not found (01-netcfg.yaml or 00-installer-config.yaml or 50-cloud-init.yaml)" "$RED"
-        msg ""
-        return 1
-    fi
+    echo
+    echo -e "${RED}Error: network configuration file not found${NC}"
+    echo -e "${YELLOW}Checked:${NC}"
+    echo "  /etc/netplan/01-netcfg.yaml"
+    echo "  /etc/netplan/00-installer-config.yaml"
+    echo "  /etc/netplan/50-cloud-init.yaml"
+    echo
+    return 1
 }
 
-function sleeprandomfilecheck() {
-    local maxwait="$1"  # The desired maximum wait time
+
+sleeprandomfilecheck() {
+    local maxwait="$1"
     local sleepnumberfile="/usr/local/bin/sleeprandom"
 
-    # Check if the file exists
-    if [[ -e "$sleepnumberfile" ]]; then
-        # Read current MAXWAIT from the script
-        current_maxwait=$(grep -E '^MAXWAIT=' "$sleepnumberfile" | cut -d'=' -f2)
-        if [[ "$current_maxwait" != "$maxwait" ]]; then
-            echo -e "${CYAN}Updating MAXWAIT from $current_maxwait to $maxwait${NC}"
-            # Update the MAXWAIT line
-            sed -i "s/^MAXWAIT=.*/MAXWAIT=$maxwait/" "$sleepnumberfile"
-        else
-            echo -e "${CYAN}MAXWAIT already set to $maxwait, no change needed${NC}"
-        fi
-    else
-        # Create the file if it doesn't exist
-        echo -e "${CYAN}Installing sleep/delay file with MAXWAIT=$maxwait${NC}"
-        mkdir -p /usr/local/bin
-        cat << EOF > "$sleepnumberfile"
+    if [[ ! "$maxwait" =~ ^[0-9]+$ ]]; then
+        echo -e "${RED}Invalid maximum sleep value: $maxwait${NC}"
+        return 1
+    fi
+
+    (( maxwait > 5 )) || maxwait=6
+
+    cat > "$sleepnumberfile" <<EOF
 #!/bin/bash
 MINWAIT=5
 MAXWAIT=$maxwait
-sleep \$((MINWAIT + RANDOM % (MAXWAIT - MINWAIT)))
+sleep \$((MINWAIT + RANDOM % (MAXWAIT - MINWAIT + 1)))
 EOF
-        chmod +x "$sleepnumberfile"
+
+    chmod 0755 "$sleepnumberfile" || return 1
+    echo -e "${CYAN}Sleep delay configured with MAXWAIT=$maxwait${NC}"
+}
+
+erase_chain_data() {
+    local alias="$1"
+    local node_home="/home/$alias"
+    local data_dir="$node_home/.${coindir}"
+
+    checkaliasvalidity "$alias" require_existing || return 1
+
+    if [[ -z "$alias" ||
+          "$node_home" != "/home/$alias" ||
+          "$data_dir" != "/home/$alias/.${coindir}" ||
+          ! -d "$data_dir" ]]; then
+        echo -e "${RED}Unsafe or missing data directory: $data_dir${NC}"
+        return 1
     fi
+
+    if ! find "$data_dir" -type f \
+        \( -name '.lock' -o -name '.walletlock' \) \
+        -delete; then
+        echo -e "${RED}Failed removing lock files from $data_dir${NC}"
+        return 1
+    fi
+
+    if ! find "$data_dir" \
+        -mindepth 1 \
+        -maxdepth 1 \
+        ! -name 'wallet.dat' \
+        ! -name '*.conf' \
+        -delete; then
+        echo -e "${RED}Failed cleaning chain directory $data_dir${NC}"
+        return 1
+    fi
+
+    return 0
 }
 
 function chain_repair() {
 
 	local alias="$1"
 	local bootstrapchoice="$2"
-	local update_all_nodes="${3:-no}"
+	local updateallnodes="${3:-no}"
 	local chaindownload=0
 	local nodesblock=0
-  local curl_output
   local currentblock
   local upperlimit lowerlimit
   local forcechainrepair
@@ -654,6 +672,8 @@ function chain_repair() {
       echo -e "${RED}No alias provided — aborting${NC}"
       return 1
   fi
+
+  local node_home="/home/$alias"
 
 	echo
 	echo -e "${YELLOW}Checking ${CYAN}$alias${YELLOW} block count against explorer${NC}"
@@ -699,162 +719,93 @@ function chain_repair() {
       return 1
   fi
 
+  nodesblock="${nodesblock//$'\r'/}"
+  nodesblock="${nodesblock//$'\n'/}"
+
+  if [[ ! "$nodesblock" =~ ^[0-9]+$ ]]; then
+      echo -e "${RED}Invalid block count returned by $alias: $nodesblock${NC}"
+      return 1
+  fi
+
   if [[ "$currentblock" -eq "$nodesblock" ]]; then
-      echo -e "${CYAN}${alias}${NC} sccnode: $nodesblock explorer: $currentblock ${CYAN}Same as explorer${NC}"
-      echo
-      echo -e "${MAGENTA}Chain repair is not needed for this node${NC}"
-      echo
+    echo -e "${CYAN}${alias}${NC} sccnode: $nodesblock explorer: $currentblock ${CYAN}Same as explorer${NC}"
+    echo
+    echo -e "${MAGENTA}Chain repair is not needed for this node${NC}"
+    echo
 
-      prompt_yes_no forcechainrepair \
-          "Do you wish to force the chain repair anyway?" || return 1
+    if [[ "$updateallnodes" == "yes" ]]; then
+        return 0
+    fi
 
-      [[ "$forcechainrepair" == "yes" ]] || return 0
+    prompt_yes_no forcechainrepair \
+        "Do you wish to force the chain repair anyway?" || return 1
 
-  elif [[ "$nodesblock" -le "$upperlimit" &&
-          "$nodesblock" -ge "$lowerlimit" ]]; then
-      echo -e "${CYAN}${alias}${NC} sccnode: $nodesblock explorer: $currentblock ${YELLOW}Within allowed variance${NC}"
-      echo
-      echo -e "${YELLOW}Chain repair is normally not required${NC}"
-      echo
+    [[ "$forcechainrepair" == "yes" ]] || return 0
 
-      if [[ "${updateallnodes:-no}" == "no" ]]; then
-          prompt_yes_no checkchainrepair2 \
-              "Do you wish to repair this node anyway?" || return 1
+  elif (( nodesblock <= upperlimit && nodesblock >= lowerlimit )); then
+    echo -e "${CYAN}${alias}${NC} sccnode: $nodesblock explorer: $currentblock ${YELLOW}Within allowed variance${NC}"
+    echo
+    echo -e "${YELLOW}Chain repair is normally not required${NC}"
+    echo
 
-          [[ "$checkchainrepair2" == "yes" ]] || return 0
-      fi
+    if [[ "$updateallnodes" == "no" ]]; then
+        prompt_yes_no checkchainrepair2 \
+            "Do you wish to repair this node anyway?" || return 1
+
+        [[ "$checkchainrepair2" == "yes" ]] || return 0
+    fi
 
   else
-      echo -e "${CYAN}${alias}${NC} sccnode: $nodesblock explorer: $currentblock ${RED}Outside allowed variance${NC}"
-      echo
-      echo -e "${RED}The node appears to require a chain repair${NC}"
-      echo
+    echo -e "${CYAN}${alias}${NC} sccnode: $nodesblock explorer: $currentblock ${RED}Outside allowed variance${NC}"
+    echo
+    echo -e "${RED}The node appears to require a chain repair${NC}"
+    echo
 
-      if [[ "${updateallnodes:-no}" == "no" ]]; then
-          prompt_yes_no checkchainrepair2 \
-              "Continue with the chain repair?" || return 1
+    if [[ "$updateallnodes" == "no" ]]; then
+        prompt_yes_no checkchainrepair2 \
+            "Continue with the chain repair?" || return 1
 
-          [[ "$checkchainrepair2" == "yes" ]] || return 0
-      fi
+        [[ "$checkchainrepair2" == "yes" ]] || return 0
+    fi
   fi
 
-	if [[ $updateallnodes == "no" ]]; then
-      prompt_yes_no checkchainrepair2 "${YELLOW}Do you wish to still chain repair?${NC}" || return 1
-  else
-			checkchainrepair2="yes"
-	fi
-
-	if [[ $checkchainrepair2 == "no" ]]
-		then
-		  return 0
-	fi
-
-
-	echo
-	echo -e "Stopping ${MAGENTA}$alias${NC}"
-
-  if ! systemctl stop -- "$alias"; then
-      echo
-      echo -e "${RED}Error: failed to stop ${CYAN}$alias${NC}"
-      echo
-      return 1
-  fi
-
-	displaypause 10
-
-
-	if [[ "$bootstrapchoice" != "yes" ]];	 then
-			echo
-		  prompt_yes_no bootstrapchoice "${YELLOW}Use offline bootstrap?${NC}" || return 1
-		else
-			echo -e "${YELLOW}Using offline bootstrap file${NC}"
-	fi
-
-	echo
-
-  local node_home="/home/$alias"
-  local data_dir="$node_home/.${coindir}"
-
-  cd "$node_home" || return 1
-
-  if [[ "$data_dir" != "/home/$alias/.${coindir}" ||
-        ! -d "$data_dir" ||
-        -z "$alias" ]]; then
-      echo -e "${RED}Unsafe or missing data directory: $data_dir${NC}"
-      return 1
-  fi
-
-  if ! find "$data_dir" -type f \
-      \( -name '.lock' -o -name '.walletlock' \) \
-      -delete; then
-      echo -e "${RED}Failed removing lock files from $data_dir${NC}"
-      return 1
-  fi
-
-  if ! find "$data_dir" \
-      -mindepth 1 \
-      -maxdepth 1 \
-      ! -name 'wallet.dat' \
-      ! -name '*.conf' \
-      -delete; then
-      echo -e "${RED}Failed cleaning chain directory $data_dir${NC}"
-      return 1
-  fi
-    
-	echo -e "${YELLOW}Downloading and/or Unzipping and replacing chain files for ${MAGENTA}$alias${NC}"
+  echo -e "${YELLOW}Downloading and/or Unzipping and replacing chain files for ${MAGENTA}$alias${NC}"
 
   local bootstrap_file="$HOME/${coinname}.zip"
 
-  if [[ "$bootstrapchoice" == "yes" ]]; then
+  case "$bootstrapchoice" in
+      yes|no)
+          ;;
+      "")
+          prompt_yes_no bootstrapchoice "Use offline bootstrap?" || return 1
+          ;;
+      *)
+          echo -e "${RED}Invalid bootstrap choice: $bootstrapchoice${NC}"
+          return 2
+          ;;
+  esac
+
+  if [[ "$bootstrapchoice" == "no" ]]; then
+      prompt_yes_no chaindownload \
+          "${YELLOW}Download a bootstrap from the web? Select ${CYAN}no${YELLOW} for full chain synchronization.${NC}" ||
+          return 1
+
+      if [[ "$chaindownload" == "yes" ]]; then
+          if ! wget -nv --show-progress \
+              "$snapshot" -O "${bootstrap_file}.part"; then
+              rm -f -- "${bootstrap_file}.part"
+              echo -e "${RED}Bootstrap download failed; existing chain remains untouched${NC}"
+              return 1
+          fi
+
+          mv -- "${bootstrap_file}.part" "$bootstrap_file" || return 1
+          bootstrapchoice="yes"
+      fi
   fi
 
-	if [[ "$bootstrapchoice" == "yes" ]];  then
-			sccfile="~/${coinname}.zip"
-			if test -e "$sccfile";  then
-          if ! 7za x "$HOME/${coinname}.zip"; then
-              echo -e "${RED}Bootstrap extraction failed.${NC}"
-              echo -e "${YELLOW}${alias} remains stopped because its chain data was already removed.${NC}"
-              return 1
-          fi
-					echo -e "${YELLOW}$coinname local chain directory updated${NC}"
-      else
-					echo
-					echo -e "${RED}File doesn't exist${NC}, ${YELLOW}downloading chain${NC}"
-
-          if [[ ! -f "$bootstrap_file" ]]; then
-              if ! wget -nv --show-progress "$snapshot" -O "${bootstrap_file}.part"; then
-                  rm -f -- "${bootstrap_file}.part"
-                  echo -e "${RED}Bootstrap download failed; existing chain was not removed${NC}"
-                  return 1
-              fi
-
-              mv -- "${bootstrap_file}.part" "$bootstrap_file" || return 1
-          fi
-
-          if ! 7za t "$bootstrap_file" >/dev/null; then
-              echo -e "${RED}Bootstrap archive failed verification${NC}"
-              return 1
-          fi
-
-          if ! 7za x "$HOME/${coinname}.zip"; then
-              echo -e "${RED}Bootstrap extraction failed${NC}"
-              return 1
-          fi
-					    echo
-					    echo -e "${YELLOW}$coinname chain directory updated${NC}"
-			fi
-		else
-			echo
-      prompt_yes_no chaindownload "${YELLOW}Do you wish to download from the web (${CYAN}yes${YELLOW}) or full chain downlaod (${CYAN}no${YELLOW})${NC}" || return 1
-	fi
-
-	if [[ $chaindownload == yes ]];  then
-			echo
-			echo -e "${YELLOW}Downloading bootstrap for offline use as well${NC}"
-			echo
-
-      if ! wget -nv --show-progress "$snapshot" -O "$HOME/${coinname}.zip"; then
-          echo -e "${RED}Bootstrap download failed${NC}"
+  if [[ "$bootstrapchoice" == "yes" ]]; then
+      if [[ ! -f "$bootstrap_file" ]]; then
+          echo -e "${RED}Bootstrap file not found: $bootstrap_file${NC}"
           return 1
       fi
 
@@ -862,31 +813,35 @@ function chain_repair() {
           echo -e "${RED}Bootstrap archive failed verification${NC}"
           return 1
       fi
+  fi
 
-      if ! 7za x "$HOME/${coinname}.zip"; then
+  echo
+  echo -e "Stopping ${MAGENTA}$alias${NC}"
+
+  systemctl stop -- "$alias" || return 1
+  displaypause 10
+
+  erase_chain_data "$alias" || return 1
+
+  if [[ "$bootstrapchoice" == "yes" ]]; then
+      if ! 7za x "$bootstrap_file" -o"$node_home"; then
           echo -e "${RED}Bootstrap extraction failed${NC}"
+          echo -e "${MAGENTA}${alias} remains stopped${NC}"
           return 1
       fi
 
-			echo
-			echo -e "${YELLOW}$coinname chain directory updated${NC}"
-	fi
+      echo -e "${YELLOW}${coinname} chain directory updated${NC}"
+  else
+      echo -e "${CYAN}${alias}${YELLOW} will perform a full chain synchronization${NC}"
+  fi
 
   chown -R -- "$alias:$alias" "$node_home" || return 1
-
-	echo
-	echo -e "${CYAN}Starting $alias after repair${NC}"
-	echo
-
-  if ! systemctl start --no-block "${alias}.service"; then
-      echo -e "${RED}Failed to start ${CYAN}$alias${NC}"
-      return 1
-  fi
+  systemctl start --no-block "${alias}.service" || return 1
 
 	displaypause 10
 
 	echo
-	echo -e "${YELLOW}Please wait for a moment.. and use ${CYAN}$alias masternode status${YELLOW} to check if $alais is ready for POSE unban or still showing READY${NC}"
+	echo -e "${YELLOW}Please wait for a moment.. and use ${CYAN}$alias masternode status${YELLOW} to check if $alias is ready for POSE unban or still showing READY${NC}"
 	echo -e "${YELLOW}If $alias showing POSE banned you will need to run the protx update command to unban${NC}"
 	echo -e "${YELLOW}Below is an example of the protx update command to use in your main wallets debug console${NC}"
 	echo -e "${YELLOW}protx update_service proTxHash ipAndPort operatorKey (operatorPayoutAddress feeSourceAddress)${NC}"
@@ -902,15 +857,22 @@ function install_mn() {
 	local bypassipv6addr=$2
 	local sleepdelay=$3
 
-	if [[ $bypassipv6setup == yes ]]
-		then
-#			test=$bypassipv6addr
-			echo -e "${MAGENTA}Setting config file for IPV6 address $bypassipv6addr${NC}"
-			echo -e ""
-			ipchoice=yes
-#		else
-#			test=0
-	fi
+  if [[ "$bypassipv6setup" == "yes" ]]; then
+      ipadd="${bypassipv6addr#[}"
+      ipadd="${ipadd%]}"
+
+      if [[ "$ipadd" == *:* ]]; then
+          ipchoice="yes"
+          echo -e "${MAGENTA}Setting config for IPv6 address $ipadd${NC}"
+      elif [[ "$ipadd" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+          ipchoice="no"
+          echo -e "${MAGENTA}Setting config for IPv4 address $ipadd${NC}"
+      else
+          echo -e "${RED}Invalid manual IP address: $bypassipv6addr${NC}"
+          return 1
+      fi
+  fi
+
 
 	#get user input alias and bind set varible#
 	echo -e ""
@@ -1033,8 +995,6 @@ function install_mn() {
 					echo -e "Your IPv4 is $ipadd"
 					echo -e "Auto IPv4 set"
 			fi
-		else
-			ipadd=$bypassipv6addr
 	fi
 
 
@@ -1061,15 +1021,13 @@ function install_mn() {
 			chaindownload=0
 	fi
 
-	if [[ $ipchoice == yes ]]
-		then
-			echo -e ""
-			echo -e "${CYAN}Applying IP configuration${NC}"
+  if [[ "$bypassipv6setup" == "no" && "$ipchoice" == "yes" ]]; then
+      echo
+      echo -e "${CYAN}Applying IP configuration${NC}"
 
-			sed -i "${linenumber2}i\\${finalconfigipv6}" $netcfg
-
-			netplan apply
-	fi
+      sed -i "${linenumber2}i\\${finalconfigipv6}" "$netcfg" || return 1
+      netplan apply || return 1
+  fi
 
 	echo -e ""
 	ufw allow ssh
@@ -1081,18 +1039,15 @@ function install_mn() {
 	echo -e ""
 	echo -e "${YELLOW}Setting up user ${CYAN}$alias${NC}"
 
-adduser "$alias" <<EOF
-echo ${pass}
-echo ${pass}
-/
-/
-/
-/
-/
-/
-/
-EOF
+  if ! adduser \
+      --disabled-password \
+      --gecos "" \
+      "$alias"; then
+      echo -e "${RED}Failed to create user $alias${NC}"
+      return 1
+  fi
 
+  printf '%s:%s\n' "$alias" "$pass" | chpasswd || return 1
 	echo -e ""
 	echo -e "${CYAN}User ${CYAN}$alias${CYAN} setup${NC}"
 	echo -e ""
@@ -1104,6 +1059,8 @@ EOF
 			sleeprandomfilecheck $sleeprandomtimer
 	fi
 
+  local wrapper_file="/usr/local/bin/$alias"
+  local service_file="/etc/systemd/system/${alias}.service"
 
 	#Node binaries check and install if needed
 	cd /usr/local/bin
@@ -1112,83 +1069,111 @@ EOF
 		then
 			echo -e "${CYAN}Node binaries already downloaded and setup${NC}"
 			echo -e ""
-		else
-			echo -e "${YELLOW}Installing node binaries for ${MAGENTA}$alias${NC}"
-			cd /usr/local/bin
 
-      if ! wget -nv --show-progress "$snapshot" -O "$HOME/${coinname}.zip"; then
-          echo -e "${RED}Bootstrap download failed${NC}"
+    else
+      echo -e "${YELLOW}Installing node binaries for ${MAGENTA}$alias${NC}"
+
+      local binary_archive="/usr/local/bin/${coinname}.zip"
+      local binary_part="${binary_archive}.part"
+
+      if ! wget -nv --show-progress "$binaries" -O "$binary_part"; then
+          rm -f -- "$binary_part"
+          echo -e "${RED}Binary download failed${NC}"
           return 1
       fi
 
-      if ! 7za x "$HOME/${coinname}.zip"; then
-          echo -e "${RED}Bootstrap extraction failed${NC}"
+      if ! mv -- "$binary_part" "$binary_archive"; then
+          echo -e "${RED}Unable to finalize binary download${NC}"
+          return 1
+      fi
+    
+      if ! 7za t "$binary_archive" >/dev/null; then
+          echo -e "${RED}Binary archive verification failed${NC}"
           return 1
       fi
 
-			chmod +x ${coinnamecli} ${coinnamed}
-			rm ${coinname}.zip
+      if ! 7za x "$binary_archive" -o/usr/local/bin; then
+          echo -e "${RED}Binary extraction failed${NC}"
+          return 1
+      fi
+
+      chmod +x "/usr/local/bin/$coinnamecli" "/usr/local/bin/$coinnamed" || return 1
+
+      rm -f -- "$binary_archive"
+
+
 			echo -e "${CYAN}$alias node binaries downloaded and installed${NC}"
 			echo -e ""
 	fi
 
 	#Node intergration - creation of alias in /usr/local/bin for executing commands to users daemon
 	echo -e "${YELLOW}Node Intergration${NC}"
-	echo -e "#!/bin/bash" >> $alias
-	echo -e "/usr/local/bin/$coinnamecli -conf=/home/$alias/.$coindir/$coinname.conf -datadir=/home/$alias/.$coindir \$@" >> $alias
-	chmod +x $alias
+  cat > "$wrapper_file" <<EOF
+#!/bin/bash
+exec /usr/local/bin/$coinnamecli \
+    -conf=/home/$alias/.${coindir}/${coinname}.conf \
+    -datadir=/home/$alias/.${coindir} \
+    "\$@"
+EOF
+  chmod +x "/usr/local/bin/$alias" || return 1
 	cd /etc/systemd/system
 	echo -e "${CYAN}Node Intergration done${NC}"
 	echo -e ""
 
 	#Setup system service
 	echo -e "${YELLOW}Setting up system service${NC}"
-	echo -e "[Unit]" >> $alias.service
-	echo -e "Description=$ticker service" >> $alias.service
-	echo -e "After=network.target" >> $alias.service
-	echo -e "" >> $alias.service
-	echo -e "[Service]" >> $alias.service
-	echo -e "User=$alias" >> $alias.service
-	echo -e "Group=root" >> $alias.service
-	echo -e "" >> $alias.service
-	echo -e "Type=forking" >> $alias.service
+	echo -e "[Unit]" > $service_file
+	echo -e "Description=$ticker service" >> $service_file
+	echo -e "After=network.target" >> $service_file
+	echo -e "" >> $service_file
+	echo -e "[Service]" >> $service_file
+	echo -e "User=$alias" >> $service_file
+	echo -e "Group=root" >> $service_file
+	echo -e "" >> $service_file
+	echo -e "Type=forking" >> $service_file
 
 	if [[ $sleepdelay == yes ]]
 		then
-			echo -e "ExecStartPre=/usr/local/bin/sleeprandom" >> $alias.service
+			echo -e "ExecStartPre=/usr/local/bin/sleeprandom" >> $service_file
 	fi
 
-	echo -e "ExecStart=/usr/local/bin/$coinnamed -daemon -conf=/home/$alias/.$coindir/$coinname.conf -datadir=/home/$alias/.$coindir">> $alias.service
-	echo -e "ExecStop=-/usr/local/bin/$coinnamecli -conf=/home/$alias/.$coindir/$coinname.conf -datadir=/home/$alias/.$coindir stop" >> $alias.service
-	echo -e "" >> $alias.service
-	echo -e "Restart=always" >> $alias.service
-	echo -e "PrivateTmp=true" >> $alias.service
-	echo -e "TimeoutStopSec=6000s" >> $alias.service
-	echo -e "TimeoutStartSec=3000s" >> $alias.service
-	echo -e "StartLimitInterval=120s" >> $alias.service
-	echo -e "StartLimitBurst=5" >> $alias.service
-	echo -e "" >> $alias.service
-	echo -e "[Install]" >> $alias.service
-	echo -e "WantedBy=multi-user.target" >> $alias.service
-	systemctl enable $alias
-	echo -e "${CYAN}System service setup and enabled${NC}"
+	echo -e "ExecStart=/usr/local/bin/$coinnamed -daemon -conf=/home/$alias/.$coindir/$coinname.conf -datadir=/home/$alias/.$coindir">> $service_file
+	echo -e "ExecStop=-/usr/local/bin/$coinnamecli -conf=/home/$alias/.$coindir/$coinname.conf -datadir=/home/$alias/.$coindir stop" >> $service_file
+	echo -e "" >> $service_file
+	echo -e "Restart=always" >> $service_file
+	echo -e "PrivateTmp=true" >> $service_file
+	echo -e "TimeoutStopSec=6000s" >> $service_file
+	echo -e "TimeoutStartSec=3000s" >> $service_file
+	echo -e "StartLimitInterval=120s" >> $service_file
+	echo -e "StartLimitBurst=5" >> $service_file
+	echo -e "" >> $service_file
+	echo -e "[Install]" >> $service_file
+	echo -e "WantedBy=multi-user.target" >> $service_file
+  systemctl daemon-reload || return 1
+  systemctl enable "${alias}.service" || return 1
+  echo -e "${CYAN}System service setup and enabled${NC}"
 
 
 	#update/copy chain files or get snapshot# from web or fresh complete chain download
 	echo
-	cd /home/$alias
-	find /home/$alias/.${coindir}/* ! -name "wallet.dat" ! -name "*.conf" -delete
-	echo -e "${YELLOW}Downloading and/or Unzipping chain files for ${MAGENTA}$alias${NC}"
+
+	mkdir -p "/home/$alias/.${coindir}" || return 1
+
+  echo
+ 	echo -e "${YELLOW}Downloading and/or Unzipping chain files for ${MAGENTA}$alias${NC}"
 	echo
 
-	mkdir /home/$alias/.${coindir}
-	chown $alias:$alias /home/$alias/.${coindir}
+	mkdir -p "/home/$alias/.${coindir}"
+	chown "$alias:$alias" "/home/$alias/.${coindir}"
 
-	if [[ $bootstrapchoice == yes ]] && [[ $chaindownload == 0 ]]
-		then
-			sccfile=~/${coinname}.zip
+  local bootstrap_file="$HOME/${coinname}.zip"
+  local bootstrap_part="${bootstrap_file}.part"
+
+	if [[ "$bootstrapchoice" == yes ]] && [[ "$chaindownload" == 0 ]]
+    then
+			sccfile="$HOME/${coinname}.zip"
 			if [[ -f "$sccfile" ]]; then
-          if ! 7za x "$sccfile"; then
+          if ! 7za x "$sccfile" -o"/home/$alias"; then
               echo -e "${RED}Bootstrap extraction failed${NC}"
               return 1
           fi
@@ -1199,37 +1184,52 @@ EOF
       else
 					echo -e "${RED}File doesn't exist${NC}, ${YELLOW}downloading chain${NC}"
 
-          if ! wget -nv --show-progress "$snapshot" -O "$HOME/${coinname}.zip"; then
+          if ! wget -nv --show-progress "$snapshot" -O "$bootstrap_part"; then
+              rm -f -- "$bootstrap_part"
               echo -e "${RED}Bootstrap download failed${NC}"
               return 1
           fi
 
-          if ! 7za x "$HOME/${coinname}.zip"; then
+          mv -- "$bootstrap_part" "$bootstrap_file" || return 1
+
+          if ! 7za t "$HOME/${coinname}.zip" >/dev/null; then
+              echo -e "${RED}Bootstrap archive failed verification${NC}"
+              return 1
+          fi
+
+          if ! 7za x "$HOME/${coinname}.zip" -o"/home/$alias"; then
               echo -e "${RED}Bootstrap extraction failed${NC}"
               return 1
           fi
 
 					echo -e "${YELLOW}$coinname chain directory updated${NC}"
-					echo -e "${YELLOW}Removing downloaded temp file${NC}"
-					rm /home/${alias}/${coinname}.zip
 			fi
 		else
 			if [[ $chaindownload == yes ]]
 				then
 
-          if ! wget -nv --show-progress "$snapshot" -O "$HOME/${coinname}.zip"; then
+          if ! wget -nv --show-progress "$snapshot" -O "$bootstrap_part"; then
+              rm -f -- "$bootstrap_part"
               echo -e "${RED}Bootstrap download failed${NC}"
               return 1
           fi
 
-          if ! 7za x "$HOME/${coinname}.zip"; then
+          if ! mv -- "$bootstrap_part" "$bootstrap_file"; then
+              echo -e "${RED}Unable to finalize bootstrap download${NC}"
+              return 1
+          fi
+
+          if ! 7za t "$bootstrap_file" >/dev/null; then
+              echo -e "${RED}Bootstrap archive failed verification${NC}"
+              return 1
+          fi
+
+          if ! 7za x "$HOME/${coinname}.zip" -o"/home/$alias"; then
               echo -e "${RED}Bootstrap extraction failed${NC}"
               return 1
           fi
 
 					echo -e "${YELLOW}$coinname chain directory setup${NC}"
-					echo -e "${YELLOW}Removing downloaded temp file${NC}"
-					rm /home/${alias}/${coinname}.zip
 			fi
 	fi
 
@@ -1238,50 +1238,60 @@ EOF
 	#make conf file
 	echo -e ""
 	echo -e "${YELLOW}Creating $coinname conf file${NC}"
-	cd .$coindir
-	echo -e "rpcuser="$rpcuser"" >> $coinname.conf
-	echo -e "rpcpassword="$rpcpass"" >> $coinname.conf
-	echo -e "rpcport=$rpcport" >> $coinname.conf
-	echo -e "rpcallowip=127.0.0.1" >> $coinname.conf
-	echo -e "port=$port" >> $coinname.conf
-	echo -e "listen=1" >> $coinname.conf
-	echo -e "server=1" >> $coinname.conf
-	echo -e "daemon=0" >> $coinname.conf
-	echo -e "txindex=1" >> $coinname.conf
-	echo -e "maxconnections=125" >> $coinname.conf
+
+  local conf_file="/home/$alias/.${coindir}/${coinname}.conf"
+
+  cat > "$conf_file" <<EOF
+rpcuser=$rpcuser
+rpcpassword=$rpcpass
+rpcport=$rpcport
+rpcallowip=127.0.0.1
+port=$port
+listen=1
+server=1
+daemon=0
+txindex=1
+maxconnections=125
+EOF
 
 	#IPv6 check and edit
-	if [[ $ipchoice == yes ]]
-		then
-			if [[ $bypassipv6setup != yes ]] 
-				then
-					ipadd=$ipv6conf
-			fi
-			echo -e "bind=[$ipadd]" >> $coinname.conf
-			echo -e "externalip=[$ipadd]:$port" >> $coinname.conf
-		else
-			echo -e "bind=$ipadd" >> $coinname.conf
-			echo -e "externalip=$ipadd:$port" >> $coinname.conf
-	fi
+  if [[ "$ipchoice" == "yes" ]]; then
+      if [[ "$bypassipv6setup" != "yes" ]]; then
+          ipadd="$ipv6conf"
+      fi
 
-	echo -e "masternodeblsprivkey=$key" >> $coinname.conf
-	echo -e "addnode=173.249.9.78" >> $coinname.conf
-	echo -e "addnode=173.249.9.77" >> $coinname.conf
+      {
+          echo "bind=[$ipadd]"
+          echo "externalip=[$ipadd]:$port"
+      } >> "$conf_file"
+  else
+      {
+          echo "bind=$ipadd"
+          echo "externalip=$ipadd:$port"
+      } >> "$conf_file"
+  fi
+
+  {
+      echo "masternodeblsprivkey=$blskey"
+      echo "addnode=173.249.9.78"
+      echo "addnode=173.249.9.77"
+  } >> "$conf_file"
 
 	echo -e "${CYAN}$coinname conf file created${NC}"
 	echo
 
 	#Set permisions and firewall rules
 	echo -e "${YELLOW}Setting permissions and firewall rules${NC}"
-	cd /home
-	chown -R $alias $alias
-	ufw allow $port/tcp comment "$alias port"
-	ufw allow $rpcport/tcp comment "$alias RPC port"
-	echo -e "${YELLOW}Permissions and firewall rules set${NC}"
+	cd "/home/$alias"
+	chown -R -- "$alias:$alias" "/home/$alias" || return 1
+  ufw allow "$port/tcp" comment "$alias port"
+  ufw allow from 127.0.0.1 to any port "$rpcport" proto tcp \
+      comment "$alias RPC port"
+  echo -e "${YELLOW}Permissions and firewall rules set${NC}"
 	echo
 	echo -e "${YELLOW}Starting Node${NC}"
 
-	systemctl start --no-block $alias
+	systemctl start --no-block "$alias"
 
 	echo
 	echo -e "${YELLOW}Please wait a moment and then read the following information${NC}"
@@ -1297,7 +1307,7 @@ EOF
 	echo -e "IP/Bind = $ipadd"
 	echo -e "Port = $port"
 	echo -e "rpcport = $rpcport"
-	echo -e "BLS secret key = $key"
+	echo -e "BLS secret key = $blskey"
 	echo -e "alias password = $pass"
 	echo
 	echo -e "${YELLOW}Please note that if you are installing multiple MNs you will need to setup swap space${NC}"
@@ -1330,7 +1340,12 @@ function ipv6_setup() {
         prompt_yes_no autoconfigchoice "${CYAN}Do you wish to disable auto and setup static network configuration?${NC}" || return 1
 
         if [[ "$autoconfigchoice" == "yes" ]]; then
-            mv "$netcfg" "$netcfg2"
+            if ! mv -- "$netcfg" "$netcfg2"; then
+                echo -e "${RED}Failed to move netplan configuration${NC}"
+                return 1
+            fi
+
+            netcfg="$netcfg2"
             filefixed=1
 
             if [[ -f "$cloudinit" ]]; then
@@ -1340,7 +1355,7 @@ function ipv6_setup() {
             fi
         else
             echo -e "${RED}Aborting due to configuration error.${NC}"
-            exit
+            return 1
         fi
     fi
 
@@ -1368,23 +1383,69 @@ function wallet_update_all() {
     echo -e "${YELLOW}Starting Wallet update tool for ${CYAN}All ${ticker}${YELLOW} nodes${NC}"
     echo
 
-    # ----- Download fresh binaries -------------------------------------------------
-    pushd /usr/local/bin >/dev/null || exit 1
-    rm -f "${coinnamecli}" "${coinnamed}"
+    local binary_archive="/usr/local/bin/${coinname}.zip"
+    local binary_part="${binary_archive}.part"
 
-    if ! wget -nv --show-progress "$snapshot" -O "$HOME/${coinname}.zip"; then
-        echo -e "${RED}Bootstrap download failed${NC}"
+    pushd /usr/local/bin >/dev/null || return 1
+
+    if ! wget -nv --show-progress "$binaries" -O "$binary_part"; then
+        rm -f -- "$binary_part"
+        echo -e "${RED}Binary download failed; existing binaries were not changed${NC}"
+        popd >/dev/null
         return 1
     fi
 
-    if ! 7za x "$HOME/${coinname}.zip"; then
-        echo -e "${RED}Bootstrap extraction failed.${NC}"
-        echo -e "${YELLOW}${alias} remains stopped because its chain data was already removed.${NC}"
+    if ! mv -- "$binary_part" "$binary_archive"; then
+        echo -e "${RED}Unable to finalize binary download${NC}"
+        popd >/dev/null
         return 1
     fi
 
-    chmod +x "${coinnamecli}" "${coinnamed}"
-    rm -f "${coinname}.zip"
+    if ! 7za t "$binary_archive" >/dev/null; then
+        echo -e "${RED}Binary archive verification failed; existing binaries were not changed${NC}"
+        popd >/dev/null
+        return 1
+    fi
+
+    local temp_dir
+
+    if ! temp_dir=$(mktemp -d); then
+        popd >/dev/null
+        return 1
+    fi
+
+    if ! 7za x -y "$binary_archive" -o"$temp_dir"; then
+        rm -rf -- "$temp_dir"
+        popd >/dev/null
+        return 1
+    fi
+
+    if [[ ! -f "$temp_dir/$coinnamecli" ||
+          ! -f "$temp_dir/$coinnamed" ]]; then
+        echo -e "${RED}Expected binaries are missing from the archive${NC}"
+        rm -rf -- "$temp_dir"
+        popd >/dev/null
+        return 1
+    fi
+
+    if ! install -m 0755 \
+        "$temp_dir/$coinnamecli" \
+        "/usr/local/bin/$coinnamecli"; then
+        rm -rf -- "$temp_dir"
+        popd >/dev/null
+        return 1
+    fi
+
+    if ! install -m 0755 \
+        "$temp_dir/$coinnamed" \
+        "/usr/local/bin/$coinnamed"; then
+        rm -rf -- "$temp_dir"
+        popd >/dev/null
+        return 1
+    fi
+
+    rm -rf -- "$temp_dir"
+    rm -f -- "$binary_archive"
     popd >/dev/null
 
     # optional pause so the user can see the result of the extraction
@@ -1403,29 +1464,43 @@ function wallet_update_all() {
     fi
 
     # ----- Walk through every home directory ----------------------------------------
+    echo
+    echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} MN's${NC}"
+
+    local foundone=0
+
     for dir in /home/*; do
-        local i=$(basename "$dir")
-        echo
-        echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} MN's${NC}"
+        local i
+        i=$(basename "$dir")
+
+        [[ "$i" == *scc* ]] || continue
+
+        foundone=1
+
         echo -e "${YELLOW}found ${CYAN}$i${NC}..."
         echo
 
-        # Only act on directories that look like SCC nodes
-        if [[ $i == *scc* ]]; then
-            echo -e "${YELLOW}Restarting ${CYAN}$i${YELLOW}..${NC}"
-            systemctl stop "$i"
-            displaypause 3
-            systemctl start --no-block "$i"
-            echo -e "${CYAN}$i${YELLOW} updated and restarted${NC}"
-            echo
-            echo -e "${YELLOW}Pausing for $sleeptimerinsec seconds to let ${CYAN}$i${YELLOW} settle${NC}"
-            displaypause "$sleeptimerinsec"
-        else
-            # This line was inside the loop in the original script; we keep the message
-            # but only show it once per iteration when the entry is *not* an SCC node.
-            echo -e "${YELLOW}No ${CYAN}$ticker${YELLOW} MN's found to update${NC}"
-        fi
+        echo
+        echo -e "${YELLOW}Restarting ${CYAN}$i${YELLOW}...${NC}"
+
+        systemctl stop "$i" || {
+            echo -e "${RED}Failed to stop $i${NC}"
+            continue
+        }
+
+        displaypause 3
+
+        systemctl start --no-block "$i" || {
+            echo -e "${RED}Failed to start $i${NC}"
+            continue
+        }
+
+        displaypause "$sleeptimerinsec"
     done
+
+    if [[ "$foundone" -eq 0 ]]; then
+        echo -e "${CYAN}No ${ticker} nodes found to update${NC}"
+    fi
 
     echo -e "${CYAN}Wallet update tool finished${NC}"
     return 0
@@ -1515,7 +1590,7 @@ function setup_swap() {
 #  offlinechainfilebuild – create a zip‑based “offline bootstrap”
 # --------------------------------------------------------------
 function offlinechainfilebuild() {
-    local alias zipfile zipdir
+    local alias
 
     echo -e "${YELLOW}Beginning creation of offline bootstrap file${NC}"
     echo
@@ -1523,14 +1598,17 @@ function offlinechainfilebuild() {
     # -----------------------------------------------------------------
     #  Show the list of possible masternode accounts (debug output)
     # -----------------------------------------------------------------
-    prompt_for_alias alias "$alias" || return 1
+    prompt_for_alias alias || return 1
 
     echo
     echo -e "${YELLOW}Stopping node ${CYAN}$alias${NC}"
     echo
 
     # Stop the systemd service (quote to protect special characters)
-    systemctl stop "${alias}.service"
+    if ! systemctl stop "${alias}.service"; then
+        echo -e "${RED}Failed to stop ${CYAN}$alias${NC}"
+        return 1
+    fi
     displaypause 5
 
     echo -e "${YELLOW}Starting the zip process${NC}"
@@ -1538,11 +1616,12 @@ function offlinechainfilebuild() {
     # -----------------------------------------------------------------
     #  Define where the zip will live (in the invoking user’s home)
     # -----------------------------------------------------------------
-    zipfile="${HOME}/stakecubecoin.zip"
-    zipdir="/home/$alias"
+    local zipdir="/home/$alias"
+    local zipfile="${HOME}/stakecubecoin.zip"
+    local ziptemp="${zipfile}.part"
 
     # Remove any old zip that might exist – silent if it does not
-    rm -f "$zipfile"
+    rm -f -- "$ziptemp"
 
     # -----------------------------------------------------------------
     #  Build the archive
@@ -1554,38 +1633,62 @@ function offlinechainfilebuild() {
     #   The leading “--” tells 7za that everything that follows is a file name,
     #   not another option (helps when the path starts with a “‑”).
     # -----------------------------------------------------------------
-    pushd "$zipdir" >/dev/null || {
-        echo -e "${RED}Failed to cd to $zipdir${NC}"
-        return 1
-    }
+    local archive_status=0
 
-    # Verify that 7za is available; fall back to the more common `zip` if not.
+    if ! pushd "$zipdir" >/dev/null; then
+        echo -e "${RED}Failed to cd to $zipdir${NC}"
+        systemctl start --no-block "${alias}.service"
+        return 1
+    fi
+
     if command -v 7za >/dev/null 2>&1; then
         7za a -tzip -r \
-            -xr!wallet.dat \
-            -xr!*.conf \
-            -xr!debug.log \
-            -- "$zipfile" .scc/*
+            '-xr!wallet.dat' \
+            '-xr!*.conf' \
+            '-xr!debug.log' \
+            -- "$ziptemp" .scc/* ||
+            archive_status=$?
     else
-        # `zip` has a slightly different syntax for exclusions
-        zip -r "$zipfile" .scc/* \
-            -x "*.conf" \
-            -x "debug.log" \
-            -x "wallet.dat"
+        zip -r "$ziptemp" .scc/* \
+            -x '*.conf' \
+            -x 'debug.log' \
+            -x 'wallet.dat' ||
+            archive_status=$?
     fi
 
     popd >/dev/null
 
-    echo
-    echo -e "${YELLOW}Done creating offline bootstrap file${NC}"
+    if (( archive_status == 0 )); then
+        if ! 7za t "$ziptemp" >/dev/null; then
+            echo -e "${RED}New bootstrap archive failed verification${NC}"
+            archive_status=1
+        elif ! mv -- "$ziptemp" "$zipfile"; then
+            echo -e "${RED}Failed to install new bootstrap archive${NC}"
+            archive_status=1
+        fi
+    fi
+
     echo
     echo -e "${YELLOW}Starting ${CYAN}$alias${NC}"
 
     # Restart the node (no‑block so the script continues immediately)
-    systemctl start --no-block "${alias}.service"
+    if ! systemctl start --no-block "${alias}.service"; then
+        echo -e "${RED}Failed to restart ${CYAN}$alias${NC}"
+        return 1
+    fi
+
+    if (( archive_status != 0 )); then
+        rm -f -- "$ziptemp"
+        echo
+        echo -e "${RED}Offline bootstrap creation failed${NC}"
+        return "$archive_status"
+    fi
+
+    echo
+    echo -e "${YELLOW}Done creating offline bootstrap file${NC}"
 
     # The function ends here – callers can check `$?` if they need a status
-    return
+    return 0
 }
 
 # --------------------------------------------------------------
@@ -1627,6 +1730,10 @@ function mn_uninstall() {
     echo -e "${YELLOW}Removing binary, service file, user and home directory${NC}"
     rm -f "/usr/local/bin/$alias"
     rm -f "/etc/systemd/system/${alias}.service"
+
+    systemctl daemon-reload || {
+        echo -e "${RED}Warning: systemd daemon reload failed${NC}"
+    }
 
     # `deluser` may not exist on every distro; fall back to `userdel` if needed.
     if command -v deluser >/dev/null 2>&1; then
@@ -1673,7 +1780,7 @@ function uninstall_multiple_nodes() {
         echo
     fi
 
-    exit 0
+    return 0
 }
 
 # --------------------------------------------------------------
@@ -1690,7 +1797,7 @@ function node_control_tool() {
     # Validate the command
     case "$stopstart" in
         stop|start|restart) ;;
-        *) echo -e "${RED}Invalid entry${NC}"; exit 1 ;;
+        *) echo -e "${RED}Invalid entry${NC}"; return 1 ;;
     esac
 
     # If we are going to start or restart, ask for the inter‑restart delay
@@ -1744,7 +1851,7 @@ function node_control_tool() {
     done
 
     echo -e "Wallet tool finished"
-    exit 0
+    return 0
 }
 
 # --------------------------------------------------------------
@@ -1760,6 +1867,8 @@ function check_status_nodes() {
     local updatechainfile=false     # ask once if we should update the chain file
     local offlinerepairall=false    # ask once if we want offline‑bootstrap for all repairs
     local updateallnodes=false      # ask once if we want to auto‑repair every node
+    local bootstrap_file="$HOME/${coinname}.zip"
+    local bootstrap_part="${bootstrap_file}.part"
 
     echo -e ""
     echo -e "${YELLOW}Checking for $ticker MN's${NC}"
@@ -1781,12 +1890,16 @@ function check_status_nodes() {
         local mn_status mn_status_exitcode
         if ! checkprocess "$i"; then
             echo -e "${RED}ERROR ${YELLOW}process for ${CYAN}$i${YELLOW} node not found${NC}"
+
             checkifstart "$i" || return 1
-            mn_status_exitcode=1
-        else
-            mn_status=$("$i" masternode status)   # $i must be the CLI binary name
-            mn_status_exitcode=$?
+
+            echo -e "${YELLOW}Skipping health check until the node finishes starting${NC}"
+            echo
+            continue
         fi
+
+        mn_status=$("$i" masternode status)   # $i must be the CLI binary name
+        mn_status_exitcode=$?
 
         # -------------------------------------------------------------
         # Show the relevant bits of the status output (debug)
@@ -1840,10 +1953,13 @@ function check_status_nodes() {
                     echo -e "${CYAN}Downloading updated bootstrap...${NC}"
                     cd $HOME
 
-                    if ! wget -nv --show-progress "$snapshot" -O "$HOME/${coinname}.zip"; then
+                    if ! wget -nv --show-progress "$snapshot" -O "$bootstrap_part"; then
+                        rm -f -- "$bootstrap_part"
                         echo -e "${RED}Bootstrap download failed${NC}"
                         return 1
                     fi
+
+                    mv -- "$bootstrap_part" "$bootstrap_file" || return 1
 
                     echo -e ""
                 fi
@@ -1894,7 +2010,6 @@ function check_status_nodes() {
 # --------------------------------------------------------------
 function explorer_compare() {
     local foundone=0
-    local curl_output
     local currentblock
     local upperlimit lowerlimit
     local i
@@ -1902,12 +2017,22 @@ function explorer_compare() {
     # -----------------------------------------------------------------
     # Get the current block height from the explorer API.
     # -----------------------------------------------------------------
-    curl_output=$(curl -s https://www.coinexplorer.net/api/v1/SCC/getblockcount)
-    if [[ -z "$curl_output" ]]; then
+    if ! currentblock=$(
+        curl -fsS --connect-timeout 10 --max-time 30 \
+            https://www.coinexplorer.net/api/v1/SCC/getblockcount
+    ); then
         echo -e "${RED}Failed to contact explorer API${NC}"
         return 1
     fi
-    currentblock=$(printf '%s' "$curl_output" | tr -dc '0-9')
+
+    currentblock="${currentblock//$'\r'/}"
+    currentblock="${currentblock//$'\n'/}"
+
+    if [[ ! "$currentblock" =~ ^[0-9]+$ ]]; then
+        echo -e "${RED}Explorer returned an invalid block height: $currentblock${NC}"
+        return 1
+    fi
+
     upperlimit=$((currentblock + 5))
     lowerlimit=$((currentblock - 5))
 
@@ -1929,42 +2054,41 @@ function explorer_compare() {
         # echo -e ""                     # <‑‑ uncomment for extra spacing if desired
 
         foundone=1
-        local runnode=0
         local nodeblock=0
-        local nodestatus=1   # assume failure until proven otherwise
 
         # -----------------------------------------------------------------
         # Verify the daemon process is running; try to start it if not.
         # -----------------------------------------------------------------
         if ! checkprocess "$i"; then
-            runnode=1
-            echo -e ""
-            echo -e "${RED}ERROR ${YELLOW}process for ${CYAN}$i${YELLOW} not found${NC}"
+            echo -e "${RED}Process for ${CYAN}$i${RED} not found${NC}"
             checkifstart "$i" || return 1
-        fi
-
-        # -----------------------------------------------------------------
-        # If the process is alive, ask the node for its block count.
-        # -----------------------------------------------------------------
-        if [[ $runnode -eq 0 ]]; then
-
-            local alias_command="/usr/local/bin/$i"
-
-            if [[ ! -x "$alias_command" ]]; then
-                echo -e "${RED}Alias command not found: $alias_command${NC}"
-                return 1
-            fi
-
-            if ! nodesblock=$("$alias_command" getblockcount); then
-                echo -e "${RED}Unable to obtain block count from $alias${NC}"
-                return 1
-            fi
-
+            echo -e "${YELLOW}Skipping block comparison until the node finishes starting${NC}"
+            echo
+            continue
         fi
 
         # -----------------------------------------------------------------
         # Compare node block height with explorer height.
         # -----------------------------------------------------------------
+        local alias_command="/usr/local/bin/$i"
+
+        if [[ ! -x "$alias_command" ]]; then
+            echo -e "${RED}Alias command not found: $alias_command${NC}"
+            continue
+        fi
+
+        if ! nodeblock=$("$alias_command" getblockcount); then
+            echo -e "${RED}Unable to obtain block count from $i${NC}"
+            continue
+        fi
+
+        nodeblock="${nodeblock//$'\r'/}"
+        nodeblock="${nodeblock//$'\n'/}"
+
+        if [[ ! "$nodeblock" =~ ^[0-9]+$ ]]; then
+            echo -e "${RED}Invalid block count returned by $i: $nodeblock${NC}"
+            continue
+        fi
         if [[ $currentblock -eq $nodeblock ]]; then
             echo -e "${CYAN}$i ${NC}sccnode: $nodeblock   explorer: $currentblock  ${CYAN}Same as explorer${NC}"
         elif (( nodeblock <= upperlimit && nodeblock >= lowerlimit )); then
@@ -1995,10 +2119,9 @@ explorer_compare_and_repair() {
     local offlinerepairall="unset"
     local updateallnodes="no"
     local blockcompare
-    local curl_output
     local currentblock
     local upperlimit lowerlimit
-    local nodesblock nodestatus blockdiff
+    local nodeblock blockdiff
     local repairnode
 
     echo -e "${CYAN}Beginning Explorer comparison tool with optional repair${NC}"
@@ -2064,13 +2187,20 @@ explorer_compare_and_repair() {
 
         if [[ ! -x "$alias_command" ]]; then
             echo -e "${RED}Alias command not found: $alias_command${NC}"
-            return 1
+            continue
         fi
 
-m        if ! nodesblock=$("$alias_command" getblockcount); then
-            echo -e "${RED}Cannot query block count from ${CYAN}${i}${RED} — node may be down${NC}"
-            echo
-            return 1
+        if ! nodeblock=$("$alias_command" getblockcount); then
+            echo -e "${RED}Unable to obtain block count from $i${NC}"
+            continue
+        fi
+
+        nodeblock="${nodeblock//$'\r'/}"
+        nodeblock="${nodeblock//$'\n'/}"
+
+        if [[ ! "$nodeblock" =~ ^[0-9]+$ ]]; then
+            echo -e "${RED}Invalid block count returned by $i: $nodeblock${NC}"
+            continue
         fi
 
         blockdiff=$(( currentblock - nodeblock ))
@@ -2240,34 +2370,74 @@ case $prerelease in
 
 	991)	echo -e "${YELLOW}Starting Wallet update tool for ${CYAN}All ${ticker}${YELLOW} nodes with pre-release software${NC}"
 			echo -e ""
-			cd /usr/local/bin
-			rm $coinnamecli $coinnamed
 
-      if ! wget -nv --show-progress ${prereleasebinaries} -O ${coinname}.zip; then
-          echo -e "${RED}Bootstrap download failed${NC}"
+      local binary_archive="/usr/local/bin/${coinname}.zip"
+      local binary_part="${binary_archive}.part"
+      local temp_dir
+
+      if ! wget -nv --show-progress "$prereleasebinaries" -O "$binary_part"; then
+          rm -f -- "$binary_part"
+          echo -e "${RED}Prerelease download failed; existing binaries were not changed${NC}"
           return 1
       fi
 
-      if ! 7za x "${coinname}.zip"; then
-          echo -e "${RED}Extraction failed.${NC}"
+      mv -- "$binary_part" "$binary_archive" || return 1
+
+      if ! 7za t "$binary_archive" >/dev/null; then
+          echo -e "${RED}Prerelease archive failed verification${NC}"
           return 1
       fi
 
-			chmod +x ${coinnamecli} ${coinnamed}
-			rm ${coinname}.zip
-			cd /root
+      if ! temp_dir=$(mktemp -d); then
+          return 1
+      fi
+
+      if ! 7za x -y "$binary_archive" -o"$temp_dir"; then
+          rm -rf -- "$temp_dir"
+          return 1
+      fi
+
+      if [[ ! -f "$temp_dir/$coinnamecli" ||
+            ! -f "$temp_dir/$coinnamed" ]]; then
+          echo -e "${RED}Expected binaries are missing from the archive${NC}"
+          rm -rf -- "$temp_dir"
+          return 1
+      fi
+
+      if ! install -m 0755 \
+          "$temp_dir/$coinnamecli" \
+          "/usr/local/bin/$coinnamecli"; then
+          rm -rf -- "$temp_dir"
+          return 1
+      fi
+
+      if ! install -m 0755 \
+          "$temp_dir/$coinnamed" \
+          "/usr/local/bin/$coinnamed"; then
+          rm -rf -- "$temp_dir"
+          return 1
+      fi
+
+      rm -rf -- "$temp_dir"
+      rm -f -- "$binary_archive"
+
+			cd $HOME
 			displaypause 15
 
 			echo -e "How long between node (re)starts in seconds?"
 			echo -e "Blank/Empty equals 120 seconds"
-			read secondsdelay
+			read -r secondsdelay
 
 			if [[ $secondsdelay != "" ]]
 				then
 					sleeptimerinsec=$secondsdelay
 			fi
 
-			for i in $(ls /home/); do
+			for dir in /home/*; do
+        [[ -d "$dir" ]] || continue
+        i=$(basename "$dir")
+        [[ "$i" == *scc* ]] || continue
+
 				echo -e ""
 				echo -e "${YELLOW}Checking for ${CYAN}$ticker${YELLOW} MN's${NC}"
 				echo -e "${YELLOW}found ${CYAN}$i${NC}..."
@@ -2276,9 +2446,9 @@ case $prerelease in
 				if [[ $i == *scc* ]]
 					then
 						echo -e "${YELLOW}Restarting ${CYAN}$i${YELLOW}..${NC}"
-						systemctl stop $i
+						systemctl stop "$i"
 						displaypause 3
-						systemctl start --no-block $i
+						systemctl start --no-block "$i"
 						echo -e "${CYAN}$i${YELLOW} updated and restarted${NC}"
 						echo -e ""
 						echo -e "${YELLOW}Pausing for $sleeptimerinsec seconds to let ${CYAN}$i${YELLOW} settle${NC}"
@@ -2290,7 +2460,7 @@ case $prerelease in
 			done
 
 			echo -e "${CYAN}Wallet update tool finished${NC}"
-			exit
+		  return 0
 
 	;;
 
@@ -2628,21 +2798,11 @@ case $maintstart in
 
 		displaypause 30
 
-		nodedir="/home/$alias/.${coindir}"
+    erase_chain_data "$alias" || exit 1
 
-    if [[ ! -d "$nodedir" ]]; then
-        echo -e "${RED}ERROR: Node directory not found: $nodedir${NC}"
-        exit 1
-    fi
-
-    find "$nodedir" -name ".lock" -delete
-    find "$nodedir" -name ".walletlock" -delete
-    find "$nodedir" -type f ! -name "wallet.dat" ! -name "*.conf" -delete
-    find "$nodedir" -type d -empty -delete
-    echo
     echo -e "${RED}Chain files are deleted, restarting node ${CYAN}$alias${NC}"
 
-		systemctl start --no-block $alias.service
+		systemctl start --no-block "$alias.service"
 
 		exit
 
@@ -2755,30 +2915,27 @@ case $start in
 		echo
 		echo -e "${YELLOW}Please specify a valid IPv4 or IPv6 address only${NC}"
 		echo -e "${YELLOW}In x.x.x.x or [x:x:x:x:x:x:x:x] format${NC}"
-		read -r manualipv6addr
+		manualiptest="${manualipv6addr#[}"
+		manualiptest="${manualiptest%]}"
 
 		echo
-		echo -e "${MAGENTA}Testing ip address${NC}"
+		echo -e "${MAGENTA}Testing IP address${NC}"
 		echo -e "${MAGENTA}Pinging Google${NC}"
 
-		testipv6=$(ping google.com -c 5 -W 2 -I $manualipv6addr >&2)
-		testipv6status=$?
+		if ping google.com -c 5 -W 2 -I "$manualiptest"; then
+    		echo -e "${CYAN}Passed${NC}"
+    		echo
 
-		if [[ $testipv6status == 0 ]]
-			then
-				echo -e "${CYAN}Passed${NC}"
-				echo
+    		prompt_yes_no sleepquestion \
+        		"${YELLOW}Do you wish to enable sleep delay?${NC}" || exit 1
 
-        prompt_yes_no sleepquestion "${YELLOW}Do you wish to enable sleep delay?${NC}" || exit 1
-
-				if [[ $sleepquestion == "no" ]]
-					then
-  					install_mn "yes" "$manualipv6addr" "no" || exit 1
-					else
-	  				install_mn "yes" "$manualipv6addr" "yes" || exit 1
-				fi
-			else
-				echo -e "${RED}Error: ${CYAN}IP is invalid${NC}"
+		    if [[ "$sleepquestion" == "no" ]]; then
+    		    install_mn "yes" "$manualiptest" "no" || exit 1
+		    else
+    		    install_mn "yes" "$manualiptest" "yes" || exit 1
+    		fi
+		else
+    		echo -e "${RED}Error: ${CYAN}IP is invalid or unavailable${NC}"
 		fi
 
 		exit
@@ -2801,7 +2958,7 @@ case $start in
 
 	12)	echo -e "${YELLOW}Starting chain repair/PoSe maintenance tool${NC}"
 
-  	chain_repair "" || exit 1
+  	chain_repair "" "" "no"|| exit 1
 
 		exit
 
@@ -2850,7 +3007,7 @@ case $start in
 	97) echo -e ""
 		echo -e "${RED}Are you sure you wish to enter the pre-release menu?${NC}"
 #S		echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
-  	prompt_yes_no, prereleaseyesno "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}" || exit 1
+  	prompt_yes_no prereleaseyesno "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}" || exit 1
 
 		if [[ $prereleaseyesno == "yes" ]]
 			then
@@ -2874,36 +3031,43 @@ case $start in
 
 		echo -e ""
 
-		sccmultitool_update=$(curl https://raw.githubusercontent.com/stakecube/SCC-Multitool/master/sccmultitool.sh)
+		update_temp=$(mktemp) || exit 1
 
-		echo -e ""
-
-		if [[ -f ~/sccmultitool.sh ]]
-			then
-				if [[ $(cmp <(echo "$sccmultitool_update") ~/sccmultitool.sh) ]] && [[ $(diff <(echo "$sccmultitool_update") ~/sccmultitool.sh) ]]
-					then
-						update=$([[ -f ~/sccmultitool.sh ]] && echo "1" || echo "0")
-						echo "$sccmultitool_update" > ~/sccmultitool.sh
-						chmod +x ~/sccmultitool.sh
-
-						if [[ $update == "1" ]]
-							then
-								echo -e "${GREEN}SCCMultitool${NC} updated to the lastest version"
-								echo -e ""
-						fi
-
-						echo -e ""
-					else
-						echo -e "${GREEN}SCCMultitool${NC} is already updated to the lastest version"
-						echo -e ""
-						exit
-				fi
-			else
-				echo "$sccmultitool_update" > ~/sccmultitool.sh
-				chmod +x ~/sccmultitool.sh
-				echo -e "${GREEN}SCCmultitool${NC} installed"
-				echo -e ""
+		if ! curl -fsS --connect-timeout 10 --max-time 60 \
+    		https://raw.githubusercontent.com/stakecube/SCC-Multitool/master/sccmultitool.sh \
+    		-o "$update_temp"; then
+    		rm -f -- "$update_temp"
+    		echo -e "${RED}Unable to download SCCMultitool update${NC}"
+    		exit 1
 		fi
+
+		if [[ ! -s "$update_temp" ]]; then
+    		rm -f -- "$update_temp"
+    		echo -e "${RED}Downloaded update is empty; existing script was not changed${NC}"
+    		exit 1
+		fi
+
+		if ! bash -n "$update_temp"; then
+    		rm -f -- "$update_temp"
+    		echo -e "${RED}Downloaded update failed the Bash syntax check${NC}"
+    		exit 1
+		fi
+
+		if [[ -f "$HOME/sccmultitool.sh" ]] &&
+   		cmp -s "$update_temp" "$HOME/sccmultitool.sh"; then
+    		rm -f -- "$update_temp"
+    		echo -e "${GREEN}SCCMultitool${NC} is already updated to the latest version"
+    		exit
+		fi
+
+		install -m 0755 "$update_temp" "$HOME/sccmultitool.sh" || {
+    		rm -f -- "$update_temp"
+    		echo -e "${RED}Failed to install SCCMultitool update${NC}"
+    		exit 1
+		}
+
+		rm -f -- "$update_temp"
+		echo -e "${GREEN}SCCMultitool${NC} updated to the latest version"
 
 		exit
 
