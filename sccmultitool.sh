@@ -600,7 +600,7 @@ function chain_repair() {
   # ------------------------------------------------------------------
   # 1. Resolve alias
   # ------------------------------------------------------------------
-  prompt_for_alias alias "$alias") || return 1
+  prompt_for_alias alias "$alias" || return 1
   if [[ -z "$alias" ]]; then
       echo -e "${RED}No alias provided — aborting${NC}"
       return 1
