@@ -263,29 +263,33 @@ prompt_yes_no() {
     esac
 }
 
-function checkaliasvalidity() {
+checkaliasvalidity() {
     local aliasname="$1"
-    local newnode="$2"
-    local confFile="/home/$aliasname/.${coindir}/${coinname}.conf"
+    local mode="${2:-require_existing}"
+    local conf_file="/home/$aliasname/.${coindir}/${coinname}.conf"
 
-    # Basic sanity-check: only allow alphanumeric + hyphen/underscore to
-    # prevent path-traversal or command injection when the value is used
-    # in filesystem paths and systemctl calls.
     if [[ ! "$aliasname" =~ ^[A-Za-z0-9_-]+$ ]]; then
         echo -e "${RED}Invalid alias '${aliasname}' — aborting${NC}" >&2
-        echo
         return 1
     fi
 
-    if [[ "$newnode" == "yes" ]]; then
-        return 0
-    fi
+    case "$mode" in
+        allow_new)
+            return 0
+            ;;
+        require_existing)
+            if [[ ! -f "$conf_file" ]]; then
+                echo -e "${RED}Node not found at $conf_file${NC}" >&2
+                return 1
+            fi
+            ;;
+        *)
+            echo "checkaliasvalidity: invalid mode '$mode'" >&2
+            return 2
+            ;;
+    esac
 
-    if [[ ! -f "$confFile" ]]; then
-        echo -e "${RED}Error: node not found at $confFile${NC}" >&2
-        echo
-        return 1
-    fi
+    return 0
 }
 
 prompt_for_alias() {
@@ -294,7 +298,7 @@ prompt_for_alias() {
     local alias_input
 
     if [[ -n "$supplied_alias" ]]; then
-        checkaliasvalidity "$supplied_alias" "no" || return 1
+        checkaliasvalidity "$supplied_alias" require_existing || return 1
         result_var="$supplied_alias"
         return 0
     fi
@@ -325,14 +329,15 @@ prompt_for_alias() {
     alias_input="${alias_input#"${alias_input%%[![:space:]]*}"}"
     alias_input="${alias_input%"${alias_input##*[![:space:]]}"}"
 
-    checkaliasvalidity "$alias_input" "no" || return 1
+    checkaliasvalidity "$alias_input" require_existing || return 1
 
     result_var="$alias_input"
     return 0
 }
 
 checkblskey() {
-    local key="${1,,}"    # convert to lowercase
+    local -n result_var="$1"
+    local key="${2,,}"
 
     if [[ ! "$key" =~ ^[0-9a-f]{64}$ ]]; then
         echo -e "${RED}Invalid BLS private key.${NC}" >&2
@@ -340,6 +345,7 @@ checkblskey() {
         return 1
     fi
 
+    result_var="$key"
     return 0
 }
 
@@ -636,14 +642,6 @@ function chain_repair() {
   # -----------------------------------------------------------------
   # Get the current block height from the explorer API.
   # -----------------------------------------------------------------
-  curl_output=$(curl -s https://www.coinexplorer.net/api/v1/SCC/getblockcount)
-  if [[ -z "$curl_output" ]]; then
-      echo -e "${RED}Failed to contact explorer API${NC}"
-      return 1
-  fi
-
-  currentblock=$(printf '%s' "$curl_output" | tr -dc '0-9')
-
   if ! currentblock=$(
       curl -fsS --connect-timeout 10 --max-time 30 \
           https://www.coinexplorer.net/api/v1/SCC/getblockcount
@@ -680,50 +678,43 @@ function chain_repair() {
       echo -e "${RED}Unable to obtain block count from $alias${NC}"
       return 1
   fi
-	nodestatus=$?
 
-	if [[ $nodestatus == 0 ]]; then
-      # Compare node block height with explorer height
-      if [[ $nodestatus -eq 0 ]]; then
-          if [[ $currentblock -eq $nodesblock ]]; then
-    					echo -e "${CYAN}$i ${NC}sccnode: $nodesblock   explorer: $currentblock      ${CYAN}Same as explorer${NC}"
-		    			echo
-				    	echo -e "${MAGENTA}Chain Repair is not needed for this node"
-					    echo
+  if [[ $currentblock -eq $nodesblock ]]; then
+      echo -e "${CYAN}$i ${NC}sccnode: $nodesblock   explorer: $currentblock      ${CYAN}Same as explorer${NC}"
+		  echo
+			echo -e "${MAGENTA}Chain Repair is not needed for this node"
+		  echo
 
-    					prompt_yes_no forcechainrepair "${YELLOW}Do you wish to still do the chain repair?" || return 1
+    	prompt_yes_no forcechainrepair "${YELLOW}Do you wish to still do the chain repair?" || return 1
 					
-		    			if [[ $forcechainrepair == "no" ]]; then
-						    	return 0
-    					fi
+		  if [[ $forcechainrepair == "no" ]]; then
+			   	return 0
+    	fi
 
-          elif [[ $nodesblock -le $upperlimit && $nodesblock -ge $lowerlimit ]]; then
-              echo -e "${CYAN}$i ${NC}sccnode: $nodesblock   explorer: $currentblock      ${YELLOW}Different block count from explorer within variance${NC}"
-    					echo
-		    			echo -e "${CYAN}Continuing with repair of node${NC}"
-				    	echo
-          else
-              echo -e "${CYAN}$i ${NC}sccnode: $nodesblock   explorer: $currentblock      ${RED}Different block count from explorer${NC}"
-          fi
-      else
-          echo -e "${RED}Something is wrong with ${CYAN}$i${NC}"
-      fi
-	else
-			echo -e "${RED}Something is wrong with ${CYAN}$alias${NC}"
-			echo -e "${YELLOW}Continuing repair${NC}"
+  elif [[ $nodesblock -le $upperlimit && $nodesblock -ge $lowerlimit ]]; then
+      echo -e "${CYAN}$i ${NC}sccnode: $nodesblock   explorer: $currentblock      ${YELLOW}Different block count from explorer within variance${NC}"
+      echo
+		  echo -e "${CYAN}Continuing with repair of node${NC}"
 			echo
+  else
+      echo -e "${CYAN}$i ${NC}sccnode: $nodesblock   explorer: $currentblock      ${RED}Different block count from explorer${NC}"
+  fi
 
-			if [[ $updateallnodes == "no" ]]; then
-          prompt_yes_no checkchainrepair2 "${YELLOW}Do you wish to still chain repair?${NC}" || return 1
-				else
-					checkchainrepair2="yes"
-			fi
+	echo -e "${RED}Something is wrong with ${CYAN}$alias${NC}"
+	echo -e "${YELLOW}Continuing repair${NC}"
+	echo
 
-			if [[ $checkchainrepair2 == "no" ]]
-				then
-				  return 0
-			fi
+	if [[ $updateallnodes == "no" ]]; then
+      prompt_yes_no checkchainrepair2 "${YELLOW}Do you wish to still chain repair?${NC}" || return 1
+  else
+			checkchainrepair2="yes"
 	fi
+
+	if [[ $checkchainrepair2 == "no" ]]
+		then
+		  return 0
+	fi
+
 
 	echo
 	echo -e "Stopping ${MAGENTA}$alias${NC}"
@@ -873,7 +864,7 @@ function install_mn() {
 	echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
 	echo -e "${YELLOW}To use other tools you must include ${CYAN}$ticker${YELLOW} in the alias${NC}"
 	read -r alias
-  checkaliasvalidity "$alias" "yes" || return 1
+  checkaliasvalidity "$alias" allow_new || return 1
 
 	if [[ -f /home/$alias/.${coindir}/${coinname}.conf ]]
 		then
@@ -886,9 +877,14 @@ function install_mn() {
 
 	echo -e ""
 	echo -e "${YELLOW}${UNDERLINE}Enter the BLS secret key${NC}"
-	read -r blskey
+
+  if ! read -r blskey; then
+      echo -e "${RED}Input closed; aborting installation${NC}" >&2
+      return 1
+  fi
 
   checkblskey blskey "$blskey" || return 1
+
 
 	echo -e ""
 	echo -e "${YELLOW}${UNDERLINE}Please enter a unique RPC port number. Default is ${CYAN}$rpcport${NC}"
@@ -1367,7 +1363,7 @@ function wallet_update_all() {
     done
 
     echo -e "${CYAN}Wallet update tool finished${NC}"
-    exit 0
+    return 0
 }
 
 # --------------------------------------------------------------
@@ -1544,7 +1540,7 @@ function mn_uninstall() {
     # ---------------------------------------------------------
     # Verify the alias points to a valid node configuration
     # ---------------------------------------------------------
-    checkaliasvalidity "$alias" "no" || exit 1
+    checkaliasvalidity "$alias" require_existing || return 1
 
     # ---------------------------------------------------------
     # Stop, disable and delete the system‑d service
@@ -1937,7 +1933,7 @@ explorer_compare_and_repair() {
     local curl_output
     local currentblock
     local upperlimit lowerlimit
-    local nodeblock nodestatus blockdiff
+    local nodesblock nodestatus blockdiff
     local repairnode
 
     echo -e "${CYAN}Beginning Explorer comparison tool with optional repair${NC}"
@@ -1946,14 +1942,6 @@ explorer_compare_and_repair() {
     # ------------------------------------------------------------------
     # 1. Fetch explorer block height
     # ------------------------------------------------------------------
-    curl_output=$(curl -s https://www.coinexplorer.net/api/v1/SCC/getblockcount)
-    if [[ -z "$curl_output" ]]; then
-        echo -e "${RED}Failed to contact explorer API${NC}"
-        return 1
-    fi
-
-    currentblock=$(printf '%s' "$curl_output" | tr -dc '0-9')
-
     if ! currentblock=$(
         curl -fsS --connect-timeout 10 --max-time 30 \
             https://www.coinexplorer.net/api/v1/SCC/getblockcount
@@ -2014,40 +2002,32 @@ explorer_compare_and_repair() {
             return 1
         fi
 
-        if ! nodesblock=$("$alias_command" getblockcount); then
-            echo -e "${RED}Unable to obtain block count from $alias${NC}"
+m        if ! nodesblock=$("$alias_command" getblockcount); then
+            echo -e "${RED}Cannot query block count from ${CYAN}${i}${RED} — node may be down${NC}"
+            echo
             return 1
         fi
 
-        nodestatus=$?
+        blockdiff=$(( currentblock - nodeblock ))
+        # Ensure positive difference for comparison
+        (( blockdiff < 0 )) && blockdiff=$(( -blockdiff ))
 
-        if [[ $nodestatus -eq 0 ]]; then
-            blockdiff=$(( currentblock - nodeblock ))
-            # Ensure positive difference for comparison
-            (( blockdiff < 0 )) && blockdiff=$(( -blockdiff ))
-
-            if [[ "$currentblock" -eq "$nodeblock" ]]; then
-                echo -e "${CYAN}${i}${NC} node: ${nodeblock}   explorer: ${currentblock}   ${CYAN}In sync${NC}"
-                echo
-                continue    # nothing to do for this node
-            fi
-
-            if [[ "$blockdiff" -le "$blockcompare" ]]; then
-                echo -e "${CYAN}${i}${NC} node: ${nodeblock}   explorer: ${currentblock}   ${YELLOW}Within ${blockcompare}-block tolerance — skipping${NC}"
-                echo
-                continue
-            fi
-
-            # Block diff exceeds tolerance — fall through to repair logic
-            echo -e "${CYAN}${i}${NC} node: ${nodeblock}   explorer: ${currentblock}   ${RED}Out of sync by ${blockdiff} blocks${NC}"
+        if [[ "$currentblock" -eq "$nodeblock" ]]; then
+            echo -e "${CYAN}${i}${NC} node: ${nodeblock}   explorer: ${currentblock}   ${CYAN}In sync${NC}"
             echo
-
-        else
-            # Node did not respond at all
-            echo -e "${RED}Cannot query block count from ${CYAN}${i}${RED} — node may be down${NC}"
-            echo
-            # Fall through to repair logic
+            continue    # nothing to do for this node
         fi
+
+        if [[ "$blockdiff" -le "$blockcompare" ]]; then
+            echo -e "${CYAN}${i}${NC} node: ${nodeblock}   explorer: ${currentblock}   ${YELLOW}Within ${blockcompare}-block tolerance — skipping${NC}"
+            echo
+            continue
+        fi
+
+        # Block diff exceeds tolerance — fall through to repair logic
+        echo -e "${CYAN}${i}${NC} node: ${nodeblock}   explorer: ${currentblock}   ${RED}Out of sync by ${blockdiff} blocks${NC}"
+        echo
+
 
         # --------------------------------------------------------------
         # 3b. One-time: offer to refresh the offline bootstrap file
