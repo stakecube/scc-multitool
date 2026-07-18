@@ -2915,6 +2915,8 @@ case $start in
 		echo
 		echo -e "${YELLOW}Please specify a valid IPv4 or IPv6 address only${NC}"
 		echo -e "${YELLOW}In x.x.x.x or [x:x:x:x:x:x:x:x] format${NC}"
+    read -r manualipv6addr
+
 		manualiptest="${manualipv6addr#[}"
 		manualiptest="${manualiptest%]}"
 
