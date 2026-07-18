@@ -54,49 +54,21 @@ function msgc {
   echo -e "${2}${1}${NC}"
 }
 
-# Gets the platform we are running on.
-function getPlt {
-  if [ "$(uname)" == "Darwin" ]; then
-      echo 1
-  elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]; then
-      echo 0
-  elif [ "$(expr substr $(uname -s) 1 10)" == "MINGW32_NT" ]; then
-      echo 1
-  elif [ "$(expr substr $(uname -s) 1 10)" == "MINGW64_NT" ]; then
-      echo 1
-  elif [ "$(expr substr $(uname -s) 1 6)" == "CYGWIN" ]; then
-      echo 1
-  else
-      echo 1
-  fi
-}
-
-if [ `getPlt` == 0 ]; then
-
-	msgc "Running on Linux.." $YELLOW
-
-else
-
-	msgc "Not running on Linux..." $RED
-	exit
-
+if [[ "$(uname -s)" != "Linux" ]]; then
+    msgc "Not running on Linux..." "$RED"
+    exit 1
 fi
 
 #############################
-#############################
-
 
 #pre-setup checks and dependencies installs
-checkforrunningapt=$(ps -e | grep apt)
-
-if [[ $checkforrunningapt == "" ]]
-        then
-                echo -e "Apt not currently running"
-				echo -e ""
-        else
-                echo -e "${RED}Error:${NC} Apt is already running, aborting script"
-                exit
+if pgrep -x apt >/dev/null ||
+   pgrep -x apt-get >/dev/null ||
+   pgrep -x dpkg >/dev/null; then
+    echo -e "${RED}Error:${NC} apt or dpkg is already running; aborting"
+    exit 1
 fi
+
 
 echo -e "Checking/installing/updating other script dependency's"
 apt -y -qq install curl zip unzip nano ufw software-properties-common pwgen p7zip-full p7zip-rar
@@ -260,30 +232,31 @@ function checkprocess() {
     fi
 }
 
-function checkyesno() {
-    local yesno="$1"
-
-    if [[ "$yesno" == "yes" || "$yesno" == "no" ]]; then
-        return
-    else
-        echo -e "${YELLOW}Please enter only${MAGENTA} yes${YELLOW} or${MAGENTA} no${NC}" >&2
-        echo >&2
-        echo -e "${RED}Aborting script${NC}" >&2
-        echo >&2
-        exit
-    fi
-}
-
-function prompt_yes_no() {
-    local prompt="$1"
+prompt_yes_no() {
+    local -n result_var="$1"
+    local prompt="$2"
     local response
 
     echo >&2
     echo -e "${YELLOW}${prompt}${NC}" >&2
     echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}" >&2
+
     read -r response
-    checkyesno "$response"
-    echo "$response"
+
+    case "${response,,}" in
+        yes|no)
+            result_var="${response,,}"
+            return 0
+            ;;
+        *)
+            echo >&2
+            echo -e "${YELLOW}Please enter only${MAGENTA} yes${YELLOW} or${MAGENTA} no${NC}" >&2
+            echo >&2
+            echo -e "${RED}Aborting operation${NC}" >&2
+            echo >&2
+            return 1
+            ;;
+    esac
 }
 
 function checkaliasvalidity() {
@@ -306,47 +279,42 @@ function checkaliasvalidity() {
     fi
 }
 
-# --------------------------------------------------------------
-#  prompt_for_alias   – ask the user for a masternode alias
-# --------------------------------------------------------------
-#  Usage:
-#        alias=$(prompt_for_alias)          # ask only if $alias is empty
-#        alias=$(prompt_for_alias "$alias") # reuse an already‑provided alias
-#
-#  The function prints the list of aliases, validates the choice
-#  with `checkaliasvalidity` and echoes the (valid) alias.
-# --------------------------------------------------------------
-function prompt_for_alias() {
-    local alias_input="${1:-}"        # optional pre‑filled alias (may be empty)
+prompt_for_alias() {
+    local -n result_var="$1"
+    local supplied_alias="${2:-}"
+    local alias_input
 
-    # If the caller already gave us a non‑empty alias, just validate it.
-    if [[ -n "$alias_input" ]]; then
-        checkaliasvalidity "$alias_input" || exit 1
-        echo "$alias_input"
+    if [[ -n "$supplied_alias" ]]; then
+        checkaliasvalidity "$supplied_alias" || return 1
+        result_var="$supplied_alias"
         return 0
     fi
 
-    # -----------------------------------------------------------------
-    #  No alias supplied – show a friendly menu and read the input.
-    # -----------------------------------------------------------------
     echo >&2
-    echo -e "${YELLOW}Checking home directory for masternode alias's${NC}" >&2
-    echo >&2
-    ls /home  >&2                     # list all accounts (you can filter if you wish)
-    echo >&2
-    echo -e "${YELLOW}Above are the alias names for the installed masternodes${NC}" >&2
-    echo -e "${CYAN}Please enter the masternode alias name to repair${NC}" >&2
+    echo -e "${YELLOW}Checking home directory for masternode aliases${NC}" >&2
     echo >&2
 
-    # Read the answer (trim surrounding whitespace)
+    find /home \
+        -mindepth 1 \
+        -maxdepth 1 \
+        -type d \
+        -printf '%f\n' >&2
+
+    echo >&2
+    echo -e "${YELLOW}Above are the installed account names${NC}" >&2
+    echo -e "${CYAN}Enter the masternode alias to repair${NC}" >&2
+    echo >&2
+
     read -r alias_input </dev/tty
-    alias_input=$(printf '%s' "$alias_input" | xargs)   # strip leading/trailing ws
 
-    # Validate – `checkaliasvalidity` will exit with an error message if it fails.
-    checkaliasvalidity "$alias_input" || exit 1
+    # Remove leading and trailing whitespace without xargs.
+    alias_input="${alias_input#"${alias_input%%[![:space:]]*}"}"
+    alias_input="${alias_input%"${alias_input##*[![:space:]]}"}"
 
-    # If we get here the alias is good – echo it so the caller can capture it.
-    echo "$alias_input"
+    checkaliasvalidity "$alias_input" || return 1
+
+    result_var="$alias_input"
+    return 0
 }
 
 function debugmodeonoffsub() {
@@ -423,8 +391,8 @@ function checkifstart() {
     local alias="$1"
     local yesnostart
 
-    yesnostart=$(prompt_yes_no "Do you wish to try and start ${CYAN}$alias${YELLOW}?${NC}")
-
+    prompt_yes_no yesnostart "${YELLOW}Do you wish to try and start ${CYAN}$alias${YELLOW}?${NC}" || return 1
+    
     if [[ "$yesnostart" == "yes" ]]; then
         echo
         echo -e "${YELLOW}This will only attempt a start and will not verify it started${NC}"
@@ -626,11 +594,13 @@ function chain_repair() {
   local upperlimit lowerlimit
   local forcechainrepair
   local chainrepair2
+  local node_home="/home/$alias"
+  local data_dir="$node_home/.${coindir}"
 
   # ------------------------------------------------------------------
   # 1. Resolve alias
   # ------------------------------------------------------------------
-  alias=$(prompt_for_alias "$alias") || exit 1
+  prompt_for_alias alias "$alias") || return 1
   if [[ -z "$alias" ]]; then
       echo -e "${RED}No alias provided — aborting${NC}"
       return 1
@@ -658,7 +628,17 @@ function chain_repair() {
   echo -e "${YELLOW}Upper Block Height:  ${CYAN}$upperlimit${NC}"
   echo
 
-	nodesblock=$($alias getblockcount)
+  local alias_command="/usr/local/bin/$alias"
+
+  if [[ ! -x "$alias_command" ]]; then
+      echo -e "${RED}Alias command not found: $alias_command${NC}"
+      return 1
+  fi
+
+  if ! nodesblock=$("$alias_command" getblockcount); then
+      echo -e "${RED}Unable to obtain block count from $alias${NC}"
+      return 1
+  fi
 	nodestatus=$?
 
 	if [[ $nodestatus == 0 ]]; then
@@ -670,10 +650,10 @@ function chain_repair() {
 				    	echo -e "${MAGENTA}Chain Repair is not needed for this node"
 					    echo
 
-    					forcechainrepair=$(prompt_yes_no "${YELLOW}Do you wish to still do the chain repair?")
+    					prompt_yes_no forcechainrepair "${YELLOW}Do you wish to still do the chain repair?" || return 1
 					
 		    			if [[ $forcechainrepair == "no" ]]; then
-						    	return
+						    	return 0
     					fi
 
           elif [[ $nodesblock -le $upperlimit && $nodesblock -ge $lowerlimit ]]; then
@@ -693,21 +673,26 @@ function chain_repair() {
 			echo
 
 			if [[ $updateallnodes == "no" ]]; then
-          checkchainrepair2=$(prompt_yes_no "${YELLOW}Do you wish to still chain repair?")
+          prompt_yes_no checkchainrepair2 "${YELLOW}Do you wish to still chain repair?${NC}" || return 1
 				else
 					checkchainrepair2="yes"
 			fi
 
 			if [[ $checkchainrepair2 == "no" ]]
 				then
-					exit
+				  return 0
 			fi
 	fi
 
 	echo
 	echo -e "Stopping ${MAGENTA}$alias${NC}"
-	aliasvalid=$(systemctl stop $alias)
-	aliasvalidstatus=$?
+
+  if ! systemctl stop -- "$alias"; then
+      echo
+      echo -e "${RED}Error: failed to stop ${CYAN}$alias${NC}"
+      echo
+      return 1
+  fi
 
 	if [[ $aliasvalidstatus != 0 ]];	then
 			echo
@@ -722,16 +707,26 @@ function chain_repair() {
 
 	if [[ $bootstrapchoice != "yes" ]];	 then
 			echo
-			bootstrapchoice=$(prompt_yes_no "${YELLOW}Use offline bootstrap?${NC}")
+		  prompt_yes_no bootstrapchoice "${YELLOW}Use offline bootstrap?${NC}" || return 1
 		else
 			echo -e "${YELLOW}Using offline bootstrap file${NC}"
 	fi
 
 	echo
-	cd /home/$alias
-	find /home/$alias/.${coindir}/ -name ".lock" -delete
-	find /home/$alias/.${coindir}/ -name ".walletlock" -delete
-	find /home/$alias/.${coindir}/* ! -name "wallet.dat" ! -name "*.conf" -delete
+
+  cd "$node_home" || return 1
+
+  find "$data_dir" -type f \
+      \( -name '.lock' -o -name '.walletlock' \) \
+      -delete
+
+  find "$data_dir" \
+      -mindepth 1 \
+      -maxdepth 1 \
+      ! -name 'wallet.dat' \
+      ! -name '*.conf' \
+      -delete
+    
 	echo -e "${YELLOW}Downloading and/or Unzipping and replacing chain files for ${MAGENTA}$alias${NC}"
 
 	if [[ $bootstrapchoice == "yes" ]];  then
@@ -749,7 +744,7 @@ function chain_repair() {
 			fi
 		else
 			echo
-			chaindownload=$(prompt_yes_no "${YELLOW}Do you wish to download from the web (${CYAN}yes${YELLOW}) or full chain downlaod (${CYAN}no${YELLOW})${NC}")
+      prompt_yes_no chaindownload "${YELLOW}Do you wish to download from the web (${CYAN}yes${YELLOW}) or full chain downlaod (${CYAN}no${YELLOW})${NC}" || return 1
 	fi
 
 	if [[ $chaindownload == yes ]];  then
@@ -836,7 +831,7 @@ function install_mn() {
 
 #			checkyesno $ipchoice
 
-      ipchoice=$(prompt_yes_no "${YELLOW}Would you like to setup with an IPv6 address?{$NC}")
+      prompt_yes_no ipchoice "${YELLOW}Would you like to setup with an IPv6 address?{$NC}" || return 1
 
 #			echo -e "Passed yes/no check"
 
@@ -848,11 +843,11 @@ function install_mn() {
 				then
 					#set default IPv6
 
-					checknetcfgfile
+  				checknetcfgfile || return 1
 
 					sed -i '1{/^$/d}' $netcfg
 					netconfcount=$(grep -c "/64" $netcfg)
-					linenumber1=$((grep -n "/64" $netcfg) | cut -d\: -f1 | head -n 1)
+					linenumber1=$(grep -nF '/64' "$netcfg" | cut -d: -f1 | head -n 1)
 					linenumber2=$(( $linenumber1+$netconfcount ))
 #					echo -e "$linenumber1"
 #					echo -e "$linenumber2"
@@ -919,7 +914,7 @@ function install_mn() {
 
 #	checkyesno $bootstrapchoice
 
-  bootstrapchoice=$(prompt_yes_no "${YELLOW}Use offline bootstrap?${NC}")
+  prompt_yes_no bootstrapchoice "${YELLOW}Use offline bootstrap?${NC}" || return 1
 
 	if [[ $bootstrapchoice == no ]]
 		then
@@ -930,7 +925,7 @@ function install_mn() {
 
 #			checkyesno $chaindownload
 
-      chaindownload=$(prompt_yes_no "${YELLOW}Do you wish to download from the web (${CYAN}yes${YELLOW}) or full chain downlaod (${CYAN}no${YELLOW})${NC}")
+      prompt_yes_no chaindownload "${YELLOW}Do you wish to download from the web (${CYAN}yes${YELLOW}) or full chain downlaod (${CYAN}no${YELLOW})${NC}" || return 1
 		else
 			chaindownload=0
 	fi
@@ -1169,12 +1164,7 @@ function ipv6_setup() {
     # Check if the primary netplan config exists
     if [[ -f "$netcfg" ]]; then
         echo -e "${CYAN}Determined Auto Configuration in place.${NC}"
-#        echo -e "${CYAN}Do you wish to disable auto and setup static network configuration?${NC}"
-#        echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${NC} only${NC}"
-#        read -r autoconfigchoice
-
-#        checkyesno "$autoconfigchoice"
-        autoconfigchoice=$(prompt_yes_no "${CYAN}Do you wish to disable auto and setup static network configuration?${NC}")
+        prompt_yes_no autoconfigchoice "${CYAN}Do you wish to disable auto and setup static network configuration?${NC}" || return 1
 
         if [[ "$autoconfigchoice" == "yes" ]]; then
             mv "$netcfg" "$netcfg2"
@@ -1191,7 +1181,7 @@ function ipv6_setup() {
         fi
     fi
 
-    checknetcfgfile
+    checknetcfgfile || return 1
 
     # Enable IPv6
     echo 0 > /proc/sys/net/ipv6/conf/all/disable_ipv6
@@ -1442,7 +1432,7 @@ function offlinechainfilebuild() {
     # -----------------------------------------------------------------
     #  Show the list of possible masternode accounts (debug output)
     # -----------------------------------------------------------------
-    alias=$(prompt_for_alias) || exit 1
+    prompt_for_alias alias "$alias" || return 1
 
     echo
     echo -e "${YELLOW}Stopping node ${CYAN}$alias${NC}"
@@ -1700,7 +1690,7 @@ function check_status_nodes() {
         local mn_status mn_status_exitcode
         if ! checkprocess "$i"; then
             echo -e "${RED}ERROR ${YELLOW}process for ${CYAN}$i${YELLOW} node not found${NC}"
-            checkifstart "$i"
+            checkifstart "$i" || return 1
             mn_status_exitcode=1
         else
             mn_status=$("$i" masternode status)   # $i must be the CLI binary name
@@ -1737,7 +1727,7 @@ function check_status_nodes() {
         echo -e "${RED}Something appears to be wrong with node ${CYAN}$i${NC}"
         echo -e ""
         local repairnode
-        repairnode=$(prompt_yes_no "${YELLOW}Do you wish to initiate repair of this node${NC}")
+        prompt_yes_no repairnode "${YELLOW}Do you wish to initiate repair of this node${NC}" || return 1
         if [[ $repairnode != "yes" ]]; then
             echo -e "${YELLOW}Skipping repair${NC}"
             echo -e ""
@@ -1748,11 +1738,11 @@ function check_status_nodes() {
         # Chain‑file update (asked only once per run)
         # -----------------------------------------------------------------
         if [[ $updatechainfile == false ]]; then
-            updatechainfile=$(prompt_yes_no "${YELLOW}Do you wish to update the offline chain file first?${NC}")
+            prompt_yes_no updatechainfile "${YELLOW}Do you wish to update the offline chain file first?${NC}" || return 1
             if [[ $updatechainfile == "yes" ]]; then
                 local updatechainfilelocal
 								echo -e "${YELLOW}Update from local node or from the web?${NC}"
-                updatechainfilelocal=$(prompt_yes_no "${CYAN}Yes ${YELLOW}for local copy or ${CYAN}No ${YELLOW}for Web download${NC}")
+                prompt_yes_no updatechainfilelocal "${CYAN}Yes ${YELLOW}for local copy or ${CYAN}No ${YELLOW}for Web download${NC}" || return 1
                 if [[ $updatechainfilelocal == "yes" ]]; then
                     offlinechainfilebuild
                 else
@@ -1767,23 +1757,23 @@ function check_status_nodes() {
         # Decide once whether to use offline bootstrap for *all* repairs
         # -----------------------------------------------------------------
         if [[ $offlinerepairall == false ]]; then
-            offlinerepairall=$(prompt_yes_no "${YELLOW}Do you wish to use offline bootstrap for all repairs?${NC}")
+            prompt_yes_no offlinerepairall "${YELLOW}Do you wish to use offline bootstrap for all repairs?${NC}" || return 1
         fi
 
         # -----------------------------------------------------------------
         # Decide once whether to auto‑repair *all* nodes
         # -----------------------------------------------------------------
         if [[ $updateallnodes == false ]]; then
-            updateallnodes=$(prompt_yes_no "${YELLOW}Do you wish to repair all nodes automatically?${NC}")
+            prompt_yes_no updateallnodes "${YELLOW}Do you wish to repair all nodes automatically?${NC}" || return 1
         fi
 
         # -----------------------------------------------------------------
         # Perform the actual repair
         # -----------------------------------------------------------------
         if [[ $offlinerepairall == "yes" ]]; then
-            chain_repair "$i" "yes"
+            chain_repair "$i" "yes" || return 1
         else
-            chain_repair "$i" "no"
+            chain_repair "$i" "no" || return 1
         fi
 
         echo -e ""
@@ -1853,15 +1843,28 @@ function explorer_compare() {
             runnode=1
             echo -e ""
             echo -e "${RED}ERROR ${YELLOW}process for ${CYAN}$i${YELLOW} not found${NC}"
-            checkifstart "$i"
+            checkifstart "$i" || return 1
         fi
 
         # -----------------------------------------------------------------
         # If the process is alive, ask the node for its block count.
         # -----------------------------------------------------------------
         if [[ $runnode -eq 0 ]]; then
-            nodeblock=$("$i" getblockcount)    # note: $i must be the CLI binary name
+
+            local alias_command="/usr/local/bin/$i"
+
+            if [[ ! -x "$alias_command" ]]; then
+                echo -e "${RED}Alias command not found: $alias_command${NC}"
+                return 1
+            fi
+
+            if ! nodesblock=$("$alias_command" getblockcount); then
+                echo -e "${RED}Unable to obtain block count from $alias${NC}"
+                return 1
+            fi
+
             nodestatus=$?
+
         else
             nodestatus=1        # keep the “failed” flag set
         fi
@@ -1967,7 +1970,18 @@ explorer_compare_and_repair() {
         # --------------------------------------------------------------
         # 3a. Query node block height
         # --------------------------------------------------------------
-        nodeblock=$("$i" getblockcount 2>/dev/null)
+        local alias_command="/usr/local/bin/$i"
+
+        if [[ ! -x "$alias_command" ]]; then
+            echo -e "${RED}Alias command not found: $alias_command${NC}"
+            return 1
+        fi
+
+        if ! nodesblock=$("$alias_command" getblockcount); then
+            echo -e "${RED}Unable to obtain block count from $alias${NC}"
+            return 1
+        fi
+
         nodestatus=$?
 
         if [[ $nodestatus -eq 0 ]]; then
@@ -2003,12 +2017,10 @@ explorer_compare_and_repair() {
         #     (only asked once across all nodes)
         # --------------------------------------------------------------
         if [[ "$updatechainfile" == "no" ]]; then
-            updatechainfile=$(prompt_yes_no \
-                "${YELLOW}Refresh the offline bootstrap file before repairing?${NC}")
+            prompt_yes_no updatechainfile "${YELLOW}Refresh the offline bootstrap file before repairing?${NC}" || return 1
 
             if [[ "$updatechainfile" == "yes" ]]; then
-                updatechainfilelocal=$(prompt_yes_no \
-                    "${YELLOW}Build from local node (${CYAN}yes${YELLOW}) or download from web (${CYAN}no${YELLOW})?${NC}")
+                prompt_yes_no updatechainfilelocal "${YELLOW}Build from local node (${CYAN}yes${YELLOW}) or download from web (${CYAN}no${YELLOW})?${NC}" || return 1
 
                 if [[ "$updatechainfilelocal" == "yes" ]]; then
                     offlinechainfilebuild || return 1
@@ -2026,8 +2038,7 @@ explorer_compare_and_repair() {
         # 3c. One-time: ask whether to use offline bootstrap for ALL repairs
         # --------------------------------------------------------------
         if [[ "$offlinerepairall" == "unset" ]]; then
-            offlinerepairall=$(prompt_yes_no \
-                "${YELLOW}Use offline bootstrap for all repairs?${NC}")
+            prompt_yes_no offlinerepairall "${YELLOW}Use offline bootstrap for all repairs?${NC}" || return 1
             echo
         fi
 
@@ -2041,8 +2052,7 @@ explorer_compare_and_repair() {
             echo
 
             if [[ "$repairnode" == "yes" ]]; then
-                updateallnodes=$(prompt_yes_no \
-                    "${YELLOW}Repair ALL out-of-sync nodes without asking again?${NC}")
+                prompt_yes_no updateallnodes "${YELLOW}Repair ALL out-of-sync nodes without asking again?${NC}" || return 1
                 echo
             fi
         else
@@ -2054,9 +2064,9 @@ explorer_compare_and_repair() {
         # --------------------------------------------------------------
         if [[ "$repairnode" == "yes" ]]; then
             if [[ "$offlinerepairall" == "yes" ]]; then
-                chain_repair "$i" "yes"
+                chain_repair "$i" "yes" || return 1
             else
-                chain_repair "$i" "no"
+                chain_repair "$i" "no" || return 1
             fi
         else
             echo -e "${YELLOW}Skipping repair for ${CYAN}${i}${NC}"
@@ -2287,11 +2297,11 @@ case $maintstart in
 
 	93)	echo -e "${YELLOW}Beginning debug node tool - single node${NC}"
 
-    alias=$(prompt_for_alias) || exit 1
+    prompt_for_alias alias || exit 1
 
 		echo
 
-    onoff=$(prompt_yes_no "${YELLOW}Enable Debug Mode on Node?${NC}")
+    prompt_yes_no onoff "${YELLOW}Enable Debug Mode on Node?${NC}" || exit 1
 
 		echo -e ""
 
@@ -2312,7 +2322,7 @@ case $maintstart in
 
 		echo
 
-    onoff=$(prompt_yes_no "${YELLOW}Enable Debug Mode on Nodes?${NC}\n${MAGENTA}no${YELLOW} will turn them off if on")
+    prompt_yes_no onoff "${YELLOW}Enable Debug Mode on Nodes?${NC}\n${MAGENTA}no${YELLOW} will turn them off if on" || exit 1
 
 		echo
 
@@ -2389,7 +2399,7 @@ case $maintstart in
 
 	96)	echo -e "${YELLOW}Beginning collect single node debug log tool${NC}"
 
-		alias=$(prompt_for_alias) || exit 1
+		prompt_for_alias alias || exit 1
 		
 		echo
 		echo -e "${YELLOW}Collecting log for ${CYAN}$alias${NC}"
@@ -2456,12 +2466,12 @@ case $maintstart in
 
     echo
 
-    eraseallnodes=$(prompt_yes_no "${YELLOW}Do you wish to erase all nodes debug logs?${NC}")
+    prompt_yes_no eraseallnodes "${YELLOW}Do you wish to erase all nodes debug logs?${NC}" || exit 1
 
     singlealias=""
 
     if [[ $eraseallnodes == "no" ]]; then
-        singlealias=$(prompt_for_alias) || exit 1
+        prompt_for_alias singlealias || exit 1
     fi
 
     if [[ $eraseallnodes == "yes" ]]; then
@@ -2515,7 +2525,7 @@ case $maintstart in
 
 	99) echo -e "${YELLOW}Starting full sync chain download repair tool${NC}"
 
-	  alias=$(prompt_for_alias) || exit 1
+	  prompt_for_alias alias || exit 1
 
 		echo
 
@@ -2637,7 +2647,7 @@ case $start in
 
 	7)	echo -e "${YELLOW}Starting $ticker MasterNode install${NC}"
 
-		install_mn "no" "" "no"
+  	install_mn "no" "" "no" || exit 1
 
 		exit
 
@@ -2645,7 +2655,7 @@ case $start in
 
 	8)	echo -e "${YELLOW}Starting $ticker MasterNode install with Sleep Delay functionality${NC}"
 
-		install_mn "no" "" "yes"
+  	install_mn "no" "" "yes" || exit 1
 
 		exit
 
@@ -2669,13 +2679,13 @@ case $start in
 				echo -e "${CYAN}Passed${NC}"
 				echo
 
-        sleepquestion=$(prompt_yes_no "${YELLOW}Do you wish to enable sleep delay?${NC}")
+        prompt_yes_no sleepquestion "${YELLOW}Do you wish to enable sleep delay?${NC}" || exit 1
 
 				if [[ $sleepquestion == "no" ]]
 					then
-						install_mn "yes" "$manualipv6addr" "no"
+  					install_mn "yes" "$manualipv6addr" "no" || exit 1
 					else
-						install_mn "yes" "$manualipv6addr" "yes"
+	  				install_mn "yes" "$manualipv6addr" "yes" || exit 1
 				fi
 			else
 				echo -e "${RED}Error: ${CYAN}IP is invalid${NC}"
@@ -2701,7 +2711,7 @@ case $start in
 
 	12)	echo -e "${YELLOW}Starting chain repair/PoSe maintenance tool${NC}"
 
-		chain_repair ""
+  	chain_repair "" || exit 1
 
 		exit
 
@@ -2749,9 +2759,8 @@ case $start in
 
 	97) echo -e ""
 		echo -e "${RED}Are you sure you wish to enter the pre-release menu?${NC}"
-		echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
-		read -r prereleaseyesno
-		checkyesno $prereleaseyesno
+#S		echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
+  	prompt_yes_no, prereleaseyesno "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}" || exit 1
 
 		if [[ $prereleaseyesno == "yes" ]]
 			then
