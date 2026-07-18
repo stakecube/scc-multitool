@@ -302,11 +302,13 @@ prompt_for_alias() {
         -mindepth 1 \
         -maxdepth 1 \
         -type d \
-        -printf '%f\n' >&2
+        -printf '%f\n' |
+        sort |
+        column
 
     echo >&2
     echo -e "${YELLOW}Above are the installed account names${NC}" >&2
-    echo -e "${CYAN}Enter the masternode alias to repair${NC}" >&2
+    echo -e "${CYAN}Enter the masternode alias${NC}" >&2
     echo >&2
 
     if ! read -r alias_input; then
