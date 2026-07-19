@@ -2492,9 +2492,10 @@ echo -e "${YELLOW}95 - Check current debug status for all ${ticker} nodes${NC}"
 echo -e "${YELLOW}96 - Collect debug log for a single ${ticker} node${NC}"
 echo -e "${YELLOW}97 - Collect debug logs for all ${ticker} nodes${NC}"
 echo -e "${YELLOW}98 - Delete debug log and restart node(s), single or all${NC}"
+echo -e "${YELLOW}99 - Check and install/update service files for debug log rotation/cleanup${NC}"
 echo -e "${YELLOW}${NC}"
-echo -e "${YELLOW}99 - Full chain repair by not using a bootstrap(not recommended)${NC}"
 echo -e "${YELLOW}100- Enable IPv6 ${MAGENTA}Contabo VPS ONLY${NC}"
+echo -e "${YELLOW}199 - Full chain repair by not using a bootstrap(not recommended)${NC}"
 echo
 echo -e "${YELLOW}0  - Exit"
 echo
@@ -2783,7 +2784,52 @@ case $maintstart in
 
   ;;
 
-	99) echo -e "${YELLOW}Starting full sync chain download repair tool${NC}"
+  99)  echo -e "${YELLOW}Starting debug logrotation/cleanup tool for ALL scc nodes${NC}"
+
+    for homedir in /home/*; do
+      [[ -d "$homedir" ]] || continue
+
+      i=$(basename "$homedir")
+
+      # Skip directories whose names do not contain "scc"
+      [[ "$i" == *scc* ]] || continue
+
+      logfile="$homedir/.scc/debug.log"
+      rotatefile="/etc/logrotate.d/debug-$i"
+
+      # Only create a configuration when the .scc directory exists
+      [[ -d "$homedir/.scc" ]] || {
+          printf 'Skipping %s: %s does not exist\n' "$i" "$homedir/.scc"
+          continue
+      }
+
+      printf 'Found %s; creating %s\n' "$i" "$rotatefile"
+
+      cat > "$rotatefile" <<EOF
+$logfile {
+    weekly
+    rotate 6
+    compress
+    compresscmd /usr/bin/xz
+    compressext .xz
+    uncompresscmd /usr/bin/unxz
+    compressoptions -T2 -9
+    missingok
+    notifempty
+    su $i $i
+    copytruncate
+}
+EOF
+
+      chmod 0644 "$rotatefile"
+    done
+
+    exit
+
+  ;;
+
+
+	199) echo -e "${YELLOW}Starting full sync chain download repair tool${NC}"
 
 	  prompt_for_alias alias || exit 1
 
@@ -2808,7 +2854,7 @@ case $maintstart in
 
 	;;
 
-	100)	echo -e "Starting IPv6 setup tool..."
+	100) echo -e "Starting IPv6 setup tool..."
 
 		ipv6_setup
 
