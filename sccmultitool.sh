@@ -1273,8 +1273,6 @@ EOF
 
   {
       echo "masternodeblsprivkey=$blskey"
-      echo "addnode=173.249.9.78"
-      echo "addnode=173.249.9.77"
   } >> "$conf_file"
 
 	echo -e "${CYAN}$coinname conf file created${NC}"
@@ -1292,6 +1290,29 @@ EOF
 	echo -e "${YELLOW}Starting Node${NC}"
 
 	systemctl start --no-block "$alias"
+
+  #Create Logrotate files
+  local rotatefile
+  rotatefile="/etc/logrotate.d/debug-$alias"
+  printf 'Creating %s file\n' "$rotatefile"
+
+  cat > "$rotatefile" <<EOF
+$logfile {
+    weekly
+    rotate 6
+    compress
+    compresscmd /usr/bin/xz
+    compressext .xz
+    uncompresscmd /usr/bin/unxz
+    compressoptions -T2 -9
+    missingok
+    notifempty
+    su $alias $alias
+    copytruncate
+}
+EOF
+
+  chmod 0644 "$rotatefile"
 
 	echo
 	echo -e "${YELLOW}Please wait a moment and then read the following information${NC}"
@@ -1730,6 +1751,7 @@ function mn_uninstall() {
     echo -e "${YELLOW}Removing binary, service file, user and home directory${NC}"
     rm -f "/usr/local/bin/$alias"
     rm -f "/etc/systemd/system/${alias}.service"
+    rm -f "/etc/logrotate.d/debug-$alias"
 
     systemctl daemon-reload || {
         echo -e "${RED}Warning: systemd daemon reload failed${NC}"
