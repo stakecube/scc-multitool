@@ -1032,9 +1032,6 @@ function install_mn() {
 	echo -e ""
 	ufw allow ssh
 
-	echo -e "${CYAN}Making sure your VPS is up to date before continuing install${NC}"
-	apt update -y
-
 	#setup user
 	echo -e ""
 	echo -e "${YELLOW}Setting up user ${CYAN}$alias${NC}"
