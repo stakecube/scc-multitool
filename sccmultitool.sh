@@ -641,7 +641,7 @@ erase_chain_data() {
 
     if ! find "$data_dir" \
         -mindepth 1 \
-        -maxdepth 1 \
+        -maxdepth 5 \
         ! -name 'wallet.dat' \
         ! -name '*.conf' \
         -delete; then
@@ -808,15 +808,10 @@ function chain_repair() {
           echo -e "${RED}Bootstrap file not found: $bootstrap_file${NC}"
           return 1
       fi
-
-      if ! 7za t "$bootstrap_file" >/dev/null; then
-          echo -e "${RED}Bootstrap archive failed verification${NC}"
-          return 1
-      fi
   fi
 
   echo
-  echo -e "Stopping ${MAGENTA}$alias${NC}"
+  echo -e "Stopping ${CYAN}$alias${NC}"
 
   systemctl stop -- "$alias" || return 1
   displaypause 10
