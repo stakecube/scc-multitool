@@ -660,196 +660,232 @@ erase_chain_data() {
 
 function chain_repair() {
 
-	local alias="$1"
-	local bootstrapchoice="$2"
-	local updateallnodes="${3:-no}"
-	local chaindownload=0
-	local nodesblock=0
-  local currentblock
-  local upperlimit lowerlimit
-  local forcechainrepair
-  local checkchainrepair2
+    local alias="$1"
+    local bootstrapchoice="$2"
+    local updateallnodes="${3:-no}"
+    local repairapproved="${4:-no}"
+    local chaindownload=0
+    local nodesblock=""
+    local currentblock
+    local upperlimit lowerlimit
+    local forcechainrepair
+    local checkchainrepair2
+    local repair_without_count
+    local node_count_available=1
+    local service_state
 
-  # ------------------------------------------------------------------
-  # 1. Resolve alias
-  # ------------------------------------------------------------------
-  prompt_for_alias alias "$alias" || return 1
-  if [[ -z "$alias" ]]; then
-      echo -e "${RED}No alias provided — aborting${NC}"
-      return 1
-  fi
-
-  local node_home="/home/$alias"
-
-	echo
-	echo -e "${YELLOW}Checking ${CYAN}$alias${YELLOW} block count against explorer${NC}"
-	echo
-
-  # -----------------------------------------------------------------
-  # Get the current block height from the explorer API.
-  # -----------------------------------------------------------------
-  if ! currentblock=$(
-      curl -fsS --connect-timeout 10 --max-time 30 \
-          https://www.coinexplorer.net/api/v1/SCC/getblockcount
-  ); then
-      echo -e "${RED}Failed to contact explorer API${NC}"
-      return 1
-  fi
-
-  currentblock="${currentblock//$'\r'/}"
-  currentblock="${currentblock//$'\n'/}"
-
-  if [[ ! "$currentblock" =~ ^[0-9]+$ ]]; then
-      echo -e "${RED}Explorer returned an invalid block height: $currentblock${NC}"
-      return 1
-  fi
-
-  upperlimit=$((currentblock + 5))
-  lowerlimit=$((currentblock - 5))
-
-  echo
-  echo -e "${YELLOW}Explorer Block Height: ${CYAN}$currentblock${NC}"
-  echo -e "${YELLOW}Lower Block Height:  ${CYAN}$lowerlimit${NC}"
-  echo -e "${YELLOW}Upper Block Height:  ${CYAN}$upperlimit${NC}"
-  echo
-
-  local alias_command="/usr/local/bin/$alias"
-
-  if [[ ! -x "$alias_command" ]]; then
-      echo -e "${RED}Alias command not found: $alias_command${NC}"
-      return 1
-  fi
-
-  if ! nodesblock=$("$alias_command" getblockcount); then
-      echo -e "${RED}Unable to obtain block count from $alias${NC}"
-      return 1
-  fi
-
-  nodesblock="${nodesblock//$'\r'/}"
-  nodesblock="${nodesblock//$'\n'/}"
-
-  if [[ ! "$nodesblock" =~ ^[0-9]+$ ]]; then
-      echo -e "${RED}Invalid block count returned by $alias: $nodesblock${NC}"
-      return 1
-  fi
-
-  if [[ "$currentblock" -eq "$nodesblock" ]]; then
-    echo -e "${CYAN}${alias}${NC} sccnode: $nodesblock explorer: $currentblock ${CYAN}Same as explorer${NC}"
-    echo
-    echo -e "${MAGENTA}Chain repair is not needed for this node${NC}"
-    echo
-
-    if [[ "$updateallnodes" == "yes" ]]; then
-        return 0
+    # ------------------------------------------------------------------
+    # 1. Resolve alias
+    # ------------------------------------------------------------------
+    prompt_for_alias alias "$alias" || return 1
+    if [[ -z "$alias" ]]; then
+        echo -e "${RED}No alias provided — aborting${NC}"
+        return 1
     fi
 
-    prompt_yes_no forcechainrepair \
-        "Do you wish to force the chain repair anyway?" || return 1
+    local node_home="/home/$alias"
+    local alias_command="/usr/local/bin/$alias"
 
-    [[ "$forcechainrepair" == "yes" ]] || return 0
-
-  elif (( nodesblock <= upperlimit && nodesblock >= lowerlimit )); then
-    echo -e "${CYAN}${alias}${NC} sccnode: $nodesblock explorer: $currentblock ${YELLOW}Within allowed variance${NC}"
-    echo
-    echo -e "${YELLOW}Chain repair is normally not required${NC}"
-    echo
-
-    if [[ "$updateallnodes" == "no" ]]; then
-        prompt_yes_no checkchainrepair2 \
-            "Do you wish to repair this node anyway?" || return 1
-
-        [[ "$checkchainrepair2" == "yes" ]] || return 0
+    if [[ ! -x "$alias_command" ]]; then
+        echo -e "${RED}Alias command not found: $alias_command${NC}"
+        return 1
     fi
 
-  else
-    echo -e "${CYAN}${alias}${NC} sccnode: $nodesblock explorer: $currentblock ${RED}Outside allowed variance${NC}"
-    echo
-    echo -e "${RED}The node appears to require a chain repair${NC}"
-    echo
-
-    if [[ "$updateallnodes" == "no" ]]; then
-        prompt_yes_no checkchainrepair2 \
-            "Continue with the chain repair?" || return 1
-
-        [[ "$checkchainrepair2" == "yes" ]] || return 0
+    if ! systemctl cat "${alias}.service" >/dev/null 2>&1; then
+        echo -e "${RED}Service unit not found: ${alias}.service${NC}"
+        echo -e "${YELLOW}Chain repair cannot safely continue because the node could not be restarted.${NC}"
+        return 1
     fi
-  fi
 
-  echo -e "${YELLOW}Downloading and/or Unzipping and replacing chain files for ${MAGENTA}$alias${NC}"
+    echo
+    echo -e "${YELLOW}Checking ${CYAN}$alias${YELLOW} block count against explorer${NC}"
+    echo
 
-  local bootstrap_file="$HOME/${coinname}.zip"
+    # -----------------------------------------------------------------
+    # Query the node first. A stopped or unresponsive node can still be
+    # repaired, but its block count cannot be compared with the explorer.
+    # -----------------------------------------------------------------
+    if ! nodesblock=$("$alias_command" getblockcount); then
+        node_count_available=0
+    else
+        nodesblock="${nodesblock//$'\r'/}"
+        nodesblock="${nodesblock//$'\n'/}"
 
-  case "$bootstrapchoice" in
-      yes|no)
-          ;;
-      "")
-          prompt_yes_no bootstrapchoice "Use offline bootstrap?" || return 1
-          ;;
-      *)
-          echo -e "${RED}Invalid bootstrap choice: $bootstrapchoice${NC}"
-          return 2
-          ;;
-  esac
+        if [[ ! "$nodesblock" =~ ^[0-9]+$ ]]; then
+            node_count_available=0
+        fi
+    fi
 
-  if [[ "$bootstrapchoice" == "no" ]]; then
-      prompt_yes_no chaindownload \
-          "${YELLOW}Download a bootstrap from the web? Select ${CYAN}no${YELLOW} for full chain synchronization.${NC}" ||
-          return 1
+    if (( node_count_available == 0 )); then
+        service_state=$(systemctl is-active "${alias}.service" 2>/dev/null || true)
 
-      if [[ "$chaindownload" == "yes" ]]; then
-          if ! wget -nv --show-progress \
-              "$snapshot" -O "${bootstrap_file}.part"; then
-              rm -f -- "${bootstrap_file}.part"
-              echo -e "${RED}Bootstrap download failed; existing chain remains untouched${NC}"
-              return 1
-          fi
+        echo
+        echo -e "${RED}Unable to obtain a valid block count from ${CYAN}$alias${NC}"
+        echo -e "${YELLOW}Service state: ${CYAN}${service_state:-unknown}${NC}"
+        echo
 
-          mv -- "${bootstrap_file}.part" "$bootstrap_file" || return 1
-          bootstrapchoice="yes"
-      fi
-  fi
+        if [[ "$repairapproved" == "yes" || "$updateallnodes" == "yes" ]]; then
+            echo -e "${YELLOW}Repair was already approved; continuing without a block-count comparison${NC}"
+        else
+            prompt_yes_no repair_without_count \
+                "The node is not responding. Continue with chain repair without comparing block counts?" ||
+                return 1
 
-  if [[ "$bootstrapchoice" == "yes" ]]; then
-      if [[ ! -f "$bootstrap_file" ]]; then
-          echo -e "${RED}Bootstrap file not found: $bootstrap_file${NC}"
-          return 1
-      fi
-  fi
+            if [[ "$repair_without_count" != "yes" ]]; then
+                echo -e "${YELLOW}Skipping repair for ${CYAN}$alias${NC}"
+                return 0
+            fi
+        fi
+    else
+        # -------------------------------------------------------------
+        # The node responded, so fetch the explorer height and compare.
+        # -------------------------------------------------------------
+        if ! currentblock=$(
+            curl -fsS --connect-timeout 10 --max-time 30 \
+                https://www.coinexplorer.net/api/v1/SCC/getblockcount
+        ); then
+            echo -e "${RED}Failed to contact explorer API${NC}"
+            return 1
+        fi
 
-  echo
-  echo -e "Stopping ${CYAN}$alias${NC}"
+        currentblock="${currentblock//$'\r'/}"
+        currentblock="${currentblock//$'\n'/}"
 
-  systemctl stop -- "$alias" || return 1
-  displaypause 10
+        if [[ ! "$currentblock" =~ ^[0-9]+$ ]]; then
+            echo -e "${RED}Explorer returned an invalid block height: $currentblock${NC}"
+            return 1
+        fi
 
-  erase_chain_data "$alias" || return 1
+        upperlimit=$((currentblock + 5))
+        lowerlimit=$((currentblock - 5))
 
-  if [[ "$bootstrapchoice" == "yes" ]]; then
-      if ! 7za x "$bootstrap_file" -o"$node_home"; then
-          echo -e "${RED}Bootstrap extraction failed${NC}"
-          echo -e "${MAGENTA}${alias} remains stopped${NC}"
-          return 1
-      fi
+        echo
+        echo -e "${YELLOW}Explorer Block Height: ${CYAN}$currentblock${NC}"
+        echo -e "${YELLOW}Lower Block Height:  ${CYAN}$lowerlimit${NC}"
+        echo -e "${YELLOW}Upper Block Height:  ${CYAN}$upperlimit${NC}"
+        echo
 
-      echo -e "${YELLOW}${coinname} chain directory updated${NC}"
-  else
-      echo -e "${CYAN}${alias}${YELLOW} will perform a full chain synchronization${NC}"
-  fi
+        if [[ "$currentblock" -eq "$nodesblock" ]]; then
+            echo -e "${CYAN}${alias}${NC} sccnode: $nodesblock explorer: $currentblock ${CYAN}Same as explorer${NC}"
+            echo
+            echo -e "${MAGENTA}Chain repair is not normally needed for this node${NC}"
+            echo
 
-  chown -R -- "$alias:$alias" "$node_home" || return 1
-  systemctl start --no-block "${alias}.service" || return 1
+            if [[ "$repairapproved" == "yes" ]]; then
+                echo -e "${YELLOW}Repair was already approved; continuing${NC}"
+            elif [[ "$updateallnodes" == "yes" ]]; then
+                return 0
+            else
+                prompt_yes_no forcechainrepair \
+                    "Do you wish to force the chain repair anyway?" || return 1
 
-	displaypause 10
+                [[ "$forcechainrepair" == "yes" ]] || return 0
+            fi
 
-	echo
-	echo -e "${YELLOW}Please wait for a moment.. and use ${CYAN}$alias masternode status${YELLOW} to check if $alias is ready for POSE unban or still showing READY${NC}"
-	echo -e "${YELLOW}If $alias showing POSE banned you will need to run the protx update command to unban${NC}"
-	echo -e "${YELLOW}Below is an example of the protx update command to use in your main wallets debug console${NC}"
-	echo -e "${YELLOW}protx update_service proTxHash ipAndPort operatorKey (operatorPayoutAddress feeSourceAddress)${NC}"
-	echo
-	echo -e "${YELLOW}Example: protx update_service proTxHash (127.0.0.1:40000 or [2001:2000:2000:2000:0000:0000:0000:0052]:40000) (blsprivatekey) '""' (feeSourceAddress)${NC}"
-	echo -e "${CYAN}Chain repair tool finished${NC}"
+        elif (( nodesblock <= upperlimit && nodesblock >= lowerlimit )); then
+            echo -e "${CYAN}${alias}${NC} sccnode: $nodesblock explorer: $currentblock ${YELLOW}Within allowed variance${NC}"
+            echo
+            echo -e "${YELLOW}Chain repair is normally not required${NC}"
+            echo
 
+            if [[ "$repairapproved" == "yes" || "$updateallnodes" == "yes" ]]; then
+                echo -e "${YELLOW}Repair was already approved; continuing${NC}"
+            else
+                prompt_yes_no checkchainrepair2 \
+                    "Do you wish to repair this node anyway?" || return 1
+
+                [[ "$checkchainrepair2" == "yes" ]] || return 0
+            fi
+
+        else
+            echo -e "${CYAN}${alias}${NC} sccnode: $nodesblock explorer: $currentblock ${RED}Outside allowed variance${NC}"
+            echo
+            echo -e "${RED}The node appears to require a chain repair${NC}"
+            echo
+
+            if [[ "$repairapproved" != "yes" && "$updateallnodes" != "yes" ]]; then
+                prompt_yes_no checkchainrepair2 \
+                    "Continue with the chain repair?" || return 1
+
+                [[ "$checkchainrepair2" == "yes" ]] || return 0
+            fi
+        fi
+    fi
+
+    echo -e "${YELLOW}Downloading and/or Unzipping and replacing chain files for ${MAGENTA}$alias${NC}"
+
+    local bootstrap_file="$HOME/${coinname}.zip"
+
+    case "$bootstrapchoice" in
+        yes|no)
+            ;;
+        "")
+            prompt_yes_no bootstrapchoice "Use offline bootstrap?" || return 1
+            ;;
+        *)
+            echo -e "${RED}Invalid bootstrap choice: $bootstrapchoice${NC}"
+            return 2
+            ;;
+    esac
+
+    if [[ "$bootstrapchoice" == "no" ]]; then
+        prompt_yes_no chaindownload \
+            "${YELLOW}Download a bootstrap from the web? Select ${CYAN}no${YELLOW} for full chain synchronization.${NC}" ||
+            return 1
+
+        if [[ "$chaindownload" == "yes" ]]; then
+            if ! wget -nv --show-progress \
+                "$snapshot" -O "${bootstrap_file}.part"; then
+                rm -f -- "${bootstrap_file}.part"
+                echo -e "${RED}Bootstrap download failed; existing chain remains untouched${NC}"
+                return 1
+            fi
+
+            mv -- "${bootstrap_file}.part" "$bootstrap_file" || return 1
+            bootstrapchoice="yes"
+        fi
+    fi
+
+    if [[ "$bootstrapchoice" == "yes" ]]; then
+        if [[ ! -f "$bootstrap_file" ]]; then
+            echo -e "${RED}Bootstrap file not found: $bootstrap_file${NC}"
+            return 1
+        fi
+    fi
+
+    echo
+    echo -e "Stopping ${CYAN}$alias${NC}"
+
+    systemctl stop -- "$alias" || return 1
+    displaypause 10
+
+    erase_chain_data "$alias" || return 1
+
+    if [[ "$bootstrapchoice" == "yes" ]]; then
+        if ! 7za x "$bootstrap_file" -o"$node_home"; then
+            echo -e "${RED}Bootstrap extraction failed${NC}"
+            echo -e "${MAGENTA}${alias} remains stopped${NC}"
+            return 1
+        fi
+
+        echo -e "${YELLOW}${coinname} chain directory updated${NC}"
+    else
+        echo -e "${CYAN}${alias}${YELLOW} will perform a full chain synchronization${NC}"
+    fi
+
+    chown -R -- "$alias:$alias" "$node_home" || return 1
+    systemctl start --no-block "${alias}.service" || return 1
+
+    displaypause 10
+
+    echo
+    echo -e "${YELLOW}Please wait for a moment.. and use ${CYAN}$alias masternode status${YELLOW} to check if $alias is ready for POSE unban or still showing READY${NC}"
+    echo -e "${YELLOW}If $alias showing POSE banned you will need to run the protx update command to unban${NC}"
+    echo -e "${YELLOW}Below is an example of the protx update command to use in your main wallets debug console${NC}"
+    echo -e "${YELLOW}protx update_service proTxHash ipAndPort operatorKey (operatorPayoutAddress feeSourceAddress)${NC}"
+    echo
+    echo -e "${YELLOW}Example: protx update_service proTxHash (127.0.0.1:40000 or [2001:2000:2000:2000:0000:0000:0000:0052]:40000) (blsprivatekey) '\"\"' (feeSourceAddress)${NC}"
+    echo -e "${CYAN}Chain repair tool finished${NC}"
 }
 
 # --------------------------------------------------------------
@@ -3039,98 +3075,111 @@ function node_control_tool() {
 function check_status_nodes() {
     echo -e "Beginning Status Checks of Nodes"
 
-    # -----------------------------------------------------------------
-    # Local state variables (kept as booleans/flags)
-    # -----------------------------------------------------------------
     local foundone=0
-    local updatechainfile=false     # ask once if we should update the chain file
-    local offlinerepairall=false    # ask once if we want offline‑bootstrap for all repairs
-    local updateallnodes=false      # ask once if we want to auto‑repair every node
+    local updatechainfile=false
+    local offlinerepairall=false
+    local updateallnodes=false
     local bootstrap_file="$HOME/${coinname}.zip"
     local bootstrap_part="${bootstrap_file}.part"
 
-    echo -e ""
+    echo
     echo -e "${YELLOW}Checking for $ticker MN's${NC}"
-    echo -e ""
+    echo
 
-    # -----------------------------------------------------------------
-    # Iterate over every home directory that looks like an SCC node
-    # -----------------------------------------------------------------
     for homedir in /home/*; do
-        local i=$(basename "$homedir")          # strip the path, keep only the user name
-        [[ $i != *scc* ]] && continue           # skip non‑SCC directories
+        local i
+        local alias_command
+        local mn_status=""
+        local mn_status_exitcode=1
+        local repairnode="no"
+
+        i=$(basename "$homedir")
+        [[ "$i" == *scc* ]] || continue
 
         foundone=1
+        alias_command="/usr/local/bin/$i"
+
         echo -e "found ${CYAN}$i${NC}..."
 
         # -------------------------------------------------------------
-        # Verify the daemon process is running; try to start it if not
+        # A stopped node may be exactly the node that requires repair.
+        # Offer repair before optionally attempting a normal start.
         # -------------------------------------------------------------
-        local mn_status mn_status_exitcode
         if ! checkprocess "$i"; then
             echo -e "${RED}ERROR ${YELLOW}process for ${CYAN}$i${YELLOW} node not found${NC}"
-
-            checkifstart "$i" || return 1
-
-            echo -e "${YELLOW}Skipping health check until the node finishes starting${NC}"
             echo
-            continue
-        fi
 
-        mn_status=$("$i" masternode status)   # $i must be the CLI binary name
-        mn_status_exitcode=$?
+            prompt_yes_no repairnode \
+                "Do you wish to repair this stopped or unresponsive node?" ||
+                return 1
 
-        # -------------------------------------------------------------
-        # Show the relevant bits of the status output (debug)
-        # -------------------------------------------------------------
-        # echo -e "Full status dump:"   # <‑‑ uncomment for full dump
-        # echo "$mn_status"
-        grep -E '(state|status)' <<< "$mn_status"
-        echo -e ""
+            if [[ "$repairnode" != "yes" ]]; then
+                checkifstart "$i" || return 1
+                echo -e "${YELLOW}Skipping repair for ${CYAN}$i${NC}"
+                echo
+                continue
+            fi
+        else
+            if [[ ! -x "$alias_command" ]]; then
+                echo -e "${RED}Alias command not found: $alias_command${NC}"
+                echo -e "${YELLOW}Chain repair will not replace a missing CLI wrapper${NC}"
+                echo
+                continue
+            fi
 
-        # -------------------------------------------------------------
-        # Look for obvious error strings
-        # -------------------------------------------------------------
-        if grep -iq 'BANNED\|ERROR' <<< "$mn_status"; then
-            mn_status_exitcode=1
-        fi
+            if mn_status=$("$alias_command" masternode status 2>&1); then
+                mn_status_exitcode=0
+            else
+                mn_status_exitcode=1
+            fi
 
-        # -------------------------------------------------------------
-        # Healthy node → skip the rest of the loop
-        # -------------------------------------------------------------
-        if [[ $mn_status_exitcode -eq 0 ]]; then
-            echo -e "${YELLOW}Appears to be in good shape${NC}"
-            echo -e ""
-            continue
-        fi
+            grep -E '(state|status)' <<< "$mn_status"
+            echo
 
-        # -------------------------------------------------------------
-        # Node appears broken – ask the user if they want a repair
-        # -------------------------------------------------------------
-        echo -e "${RED}Something appears to be wrong with node ${CYAN}$i${NC}"
-        echo -e ""
-        local repairnode
-        prompt_yes_no repairnode "${YELLOW}Do you wish to initiate repair of this node${NC}" || return 1
-        if [[ $repairnode != "yes" ]]; then
-            echo -e "${YELLOW}Skipping repair${NC}"
-            echo -e ""
-            continue
+            if grep -Eiq 'BANNED|ERROR' <<< "$mn_status"; then
+                mn_status_exitcode=1
+            fi
+
+            if [[ "$mn_status_exitcode" -eq 0 ]]; then
+                echo -e "${YELLOW}Appears to be in good shape${NC}"
+                echo
+                continue
+            fi
+
+            echo -e "${RED}Something appears to be wrong with node ${CYAN}$i${NC}"
+            echo
+
+            prompt_yes_no repairnode \
+                "Do you wish to initiate repair of this node?" ||
+                return 1
+
+            if [[ "$repairnode" != "yes" ]]; then
+                echo -e "${YELLOW}Skipping repair${NC}"
+                echo
+                continue
+            fi
         fi
 
         # -----------------------------------------------------------------
-        # Chain‑file update (asked only once per run)
+        # Chain-file update (asked only once per run)
         # -----------------------------------------------------------------
-        if [[ $updatechainfile == false ]]; then
-            prompt_yes_no updatechainfile "${YELLOW}Do you wish to update the offline chain file first?${NC}" || return 1
-            if [[ $updatechainfile == "yes" ]]; then
+        if [[ "$updatechainfile" == false ]]; then
+            prompt_yes_no updatechainfile \
+                "Do you wish to update the offline chain file first?" ||
+                return 1
+
+            if [[ "$updatechainfile" == "yes" ]]; then
                 local updatechainfilelocal
-								echo -e "${YELLOW}Update from local node or from the web?${NC}"
-                prompt_yes_no updatechainfilelocal "${CYAN}Yes ${YELLOW}for local copy or ${CYAN}No ${YELLOW}for Web download${NC}" || return 1
-                if [[ $updatechainfilelocal == "yes" ]]; then
-                    offlinechainfilebuild
+
+                echo -e "${YELLOW}Update from local node or from the web?${NC}"
+                prompt_yes_no updatechainfilelocal \
+                    "${CYAN}Yes ${YELLOW}for local copy or ${CYAN}No ${YELLOW}for Web download${NC}" ||
+                    return 1
+
+                if [[ "$updatechainfilelocal" == "yes" ]]; then
+                    offlinechainfilebuild || return 1
                 else
                     echo -e "${CYAN}Downloading updated bootstrap...${NC}"
-                    cd $HOME
 
                     if ! wget -nv --show-progress "$snapshot" -O "$bootstrap_part"; then
                         rm -f -- "$bootstrap_part"
@@ -3139,42 +3188,33 @@ function check_status_nodes() {
                     fi
 
                     mv -- "$bootstrap_part" "$bootstrap_file" || return 1
-
-                    echo -e ""
+                    echo
                 fi
             fi
         fi
 
-        # -----------------------------------------------------------------
-        # Decide once whether to use offline bootstrap for *all* repairs
-        # -----------------------------------------------------------------
-        if [[ $offlinerepairall == false ]]; then
-            prompt_yes_no offlinerepairall "${YELLOW}Do you wish to use offline bootstrap for all repairs?${NC}" || return 1
+        if [[ "$offlinerepairall" == false ]]; then
+            prompt_yes_no offlinerepairall \
+                "Do you wish to use offline bootstrap for all repairs?" ||
+                return 1
         fi
 
-        # -----------------------------------------------------------------
-        # Decide once whether to auto‑repair *all* nodes
-        # -----------------------------------------------------------------
-        if [[ $updateallnodes == false ]]; then
-            prompt_yes_no updateallnodes "${YELLOW}Do you wish to repair all nodes automatically?${NC}" || return 1
+        if [[ "$updateallnodes" == false ]]; then
+            prompt_yes_no updateallnodes \
+                "Do you wish to repair all nodes automatically?" ||
+                return 1
         fi
 
-        # -----------------------------------------------------------------
-        # Perform the actual repair
-        # -----------------------------------------------------------------
-        if [[ $offlinerepairall == "yes" ]]; then
-            chain_repair "$i" "yes" "$updateallnodes" || return 1
+        if [[ "$offlinerepairall" == "yes" ]]; then
+            chain_repair "$i" "yes" "$updateallnodes" "yes" || return 1
         else
-            chain_repair "$i" "no" "$updateallnodes" || return 1
+            chain_repair "$i" "no" "$updateallnodes" "yes" || return 1
         fi
 
-        echo -e ""
+        echo
     done
 
-    # -----------------------------------------------------------------
-    # No nodes found at all?
-    # -----------------------------------------------------------------
-    if [[ $foundone -eq 0 ]]; then
+    if [[ "$foundone" -eq 0 ]]; then
         echo -e "${CYAN}Found no $ticker nodes${NC}"
     fi
 }
@@ -3289,11 +3329,8 @@ function explorer_compare() {
 
 explorer_compare_and_repair() {
 
-    # ------------------------------------------------------------------
-    # State variables — all local to avoid polluting parent scope
-    # ------------------------------------------------------------------
     local foundone=0
-    local updatechainfile="no"
+    local updatechainfile="unset"
     local updatechainfilelocal="no"
     local offlinerepairall="unset"
     local updateallnodes="no"
@@ -3302,13 +3339,12 @@ explorer_compare_and_repair() {
     local upperlimit lowerlimit
     local nodeblock blockdiff
     local repairnode
+    local node_count_available
+    local i
 
     echo -e "${CYAN}Beginning Explorer comparison tool with optional repair${NC}"
     echo
 
-    # ------------------------------------------------------------------
-    # 1. Fetch explorer block height
-    # ------------------------------------------------------------------
     if ! currentblock=$(
         curl -fsS --connect-timeout 10 --max-time 30 \
             https://www.coinexplorer.net/api/v1/SCC/getblockcount
@@ -3327,15 +3363,12 @@ explorer_compare_and_repair() {
 
     upperlimit=$((currentblock + 5))
     lowerlimit=$((currentblock - 5))
- 
+
     echo -e "${YELLOW}Explorer Block Height: ${CYAN}${currentblock}${NC}"
     echo -e "${YELLOW}Lower Block Height:    ${CYAN}${lowerlimit}${NC}"
     echo -e "${YELLOW}Upper Block Height:    ${CYAN}${upperlimit}${NC}"
     echo
 
-    # ------------------------------------------------------------------
-    # 2. Ask how many blocks difference triggers a repair
-    # ------------------------------------------------------------------
     echo -e "${YELLOW}How many blocks difference should trigger a repair? (enter a number)${NC}"
     read -r blockcompare
     blockcompare=$(printf '%s' "$blockcompare" | xargs)
@@ -3346,130 +3379,127 @@ explorer_compare_and_repair() {
     fi
     echo
 
-    # ------------------------------------------------------------------
-    # 3. Walk home directories — avoid parsing ls
-    # ------------------------------------------------------------------
     for homedir in /home/*/; do
+        local alias_command
 
         i=$(basename "$homedir")
-
-        # Only process entries matching the coin ticker
-        [[ "$i" != *scc* ]] && continue
+        [[ "$i" == *scc* ]] || continue
 
         echo -e "${YELLOW}Checking ${CYAN}${i}${YELLOW} ...${NC}"
         foundone=1
-
-        # --------------------------------------------------------------
-        # 3a. Query node block height
-        # --------------------------------------------------------------
-        local alias_command="/usr/local/bin/$i"
+        alias_command="/usr/local/bin/$i"
 
         if [[ ! -x "$alias_command" ]]; then
             echo -e "${RED}Alias command not found: $alias_command${NC}"
             continue
         fi
 
+        repairnode="no"
+        node_count_available=1
+        nodeblock=""
+
         if ! nodeblock=$("$alias_command" getblockcount); then
-            echo -e "${RED}Unable to obtain block count from $i${NC}"
-            continue
+            node_count_available=0
+        else
+            nodeblock="${nodeblock//$'\r'/}"
+            nodeblock="${nodeblock//$'\n'/}"
+
+            if [[ ! "$nodeblock" =~ ^[0-9]+$ ]]; then
+                node_count_available=0
+            fi
         fi
 
-        nodeblock="${nodeblock//$'\r'/}"
-        nodeblock="${nodeblock//$'\n'/}"
+        if (( node_count_available == 1 )); then
+            blockdiff=$((currentblock - nodeblock))
+            (( blockdiff < 0 )) && blockdiff=$((-blockdiff))
 
-        if [[ ! "$nodeblock" =~ ^[0-9]+$ ]]; then
-            echo -e "${RED}Invalid block count returned by $i: $nodeblock${NC}"
-            continue
-        fi
+            if [[ "$currentblock" -eq "$nodeblock" ]]; then
+                echo -e "${CYAN}${i}${NC} node: ${nodeblock}   explorer: ${currentblock}   ${CYAN}In sync${NC}"
+                echo
+                continue
+            fi
 
-        blockdiff=$(( currentblock - nodeblock ))
-        # Ensure positive difference for comparison
-        (( blockdiff < 0 )) && blockdiff=$(( -blockdiff ))
+            if (( blockdiff <= blockcompare )); then
+                echo -e "${CYAN}${i}${NC} node: ${nodeblock}   explorer: ${currentblock}   ${YELLOW}Within ${blockcompare}-block tolerance — skipping${NC}"
+                echo
+                continue
+            fi
 
-        if [[ "$currentblock" -eq "$nodeblock" ]]; then
-            echo -e "${CYAN}${i}${NC} node: ${nodeblock}   explorer: ${currentblock}   ${CYAN}In sync${NC}"
+            echo -e "${CYAN}${i}${NC} node: ${nodeblock}   explorer: ${currentblock}   ${RED}Out of sync by ${blockdiff} blocks${NC}"
             echo
-            continue    # nothing to do for this node
-        fi
-
-        if [[ "$blockdiff" -le "$blockcompare" ]]; then
-            echo -e "${CYAN}${i}${NC} node: ${nodeblock}   explorer: ${currentblock}   ${YELLOW}Within ${blockcompare}-block tolerance — skipping${NC}"
+        else
+            echo -e "${RED}Unable to obtain a valid block count from ${CYAN}$i${NC}"
+            echo -e "${YELLOW}The node may be stopped, failed, or otherwise unresponsive${NC}"
             echo
-            continue
         fi
 
-        # Block diff exceeds tolerance — fall through to repair logic
-        echo -e "${CYAN}${i}${NC} node: ${nodeblock}   explorer: ${currentblock}   ${RED}Out of sync by ${blockdiff} blocks${NC}"
-        echo
-
-
-        # --------------------------------------------------------------
-        # 3b. One-time: offer to refresh the offline bootstrap file
-        #     (only asked once across all nodes)
-        # --------------------------------------------------------------
-        if [[ "$updatechainfile" == "no" ]]; then
-            prompt_yes_no updatechainfile "${YELLOW}Refresh the offline bootstrap file before repairing?${NC}" || return 1
+        # Ask only once, including when the answer is no.
+        if [[ "$updatechainfile" == "unset" ]]; then
+            prompt_yes_no updatechainfile \
+                "Refresh the offline bootstrap file before repairing?" ||
+                return 1
 
             if [[ "$updatechainfile" == "yes" ]]; then
-                prompt_yes_no updatechainfilelocal "${YELLOW}Build from local node (${CYAN}yes${YELLOW}) or download from web (${CYAN}no${YELLOW})?${NC}" || return 1
+                prompt_yes_no updatechainfilelocal \
+                    "Build from local node (${CYAN}yes${YELLOW}) or download from web (${CYAN}no${YELLOW})?${NC}" ||
+                    return 1
 
                 if [[ "$updatechainfilelocal" == "yes" ]]; then
                     offlinechainfilebuild || return 1
                 else
+                    local bootstrap_file="$HOME/${coinname}.zip"
+                    local bootstrap_part="${bootstrap_file}.part"
+
                     echo -e "${CYAN}Downloading bootstrap...${NC}"
-                    wget --no-verbose --show-progress "${snapshot}" \
-                         -O "/root/${coinname}.zip" \
-                         || { echo -e "${RED}Download failed${NC}"; return 1; }
+                    if ! wget --no-verbose --show-progress "$snapshot" -O "$bootstrap_part"; then
+                        rm -f -- "$bootstrap_part"
+                        echo -e "${RED}Download failed${NC}"
+                        return 1
+                    fi
+
+                    mv -- "$bootstrap_part" "$bootstrap_file" || return 1
                 fi
                 echo
             fi
         fi
 
-        # --------------------------------------------------------------
-        # 3c. One-time: ask whether to use offline bootstrap for ALL repairs
-        # --------------------------------------------------------------
         if [[ "$offlinerepairall" == "unset" ]]; then
-            prompt_yes_no offlinerepairall "${YELLOW}Use offline bootstrap for all repairs?${NC}" || return 1
+            prompt_yes_no offlinerepairall \
+                "Use offline bootstrap for all repairs?" ||
+                return 1
             echo
         fi
 
-        # --------------------------------------------------------------
-        # 3d. Per-node: ask whether to repair this node
-        #     (skipped if user already said repair all)
-        # --------------------------------------------------------------
         if [[ "$updateallnodes" != "yes" ]]; then
-            prompt_yes_no repairnode "${YELLOW}Chain repair ${CYAN}${i}${YELLOW}?${NC}" || return 1
-    	      echo
+            prompt_yes_no repairnode \
+                "Chain repair ${CYAN}${i}${YELLOW}?${NC}" ||
+                return 1
+            echo
 
             if [[ "$repairnode" == "yes" ]]; then
-                prompt_yes_no updateallnodes "${YELLOW}Repair ALL out-of-sync nodes without asking again?${NC}" || return 1
+                prompt_yes_no updateallnodes \
+                    "Repair ALL out-of-sync or unresponsive nodes without asking again?" ||
+                    return 1
                 echo
             fi
         else
             repairnode="yes"
         fi
 
-        # --------------------------------------------------------------
-        # 3e. Execute repair (or skip)
-        # --------------------------------------------------------------
         if [[ "$repairnode" == "yes" ]]; then
             if [[ "$offlinerepairall" == "yes" ]]; then
-                chain_repair "$i" "yes" "$updateallnodes" || return 1
+                chain_repair "$i" "yes" "$updateallnodes" "yes" || return 1
             else
-                chain_repair "$i" "no" "$updateallnodes" || return 1
+                chain_repair "$i" "no" "$updateallnodes" "yes" || return 1
             fi
         else
             echo -e "${YELLOW}Skipping repair for ${CYAN}${i}${NC}"
         fi
 
         echo
+    done
 
-    done   # end of home directory loop
-
-    # ------------------------------------------------------------------
-    # 4. Summary
-    # ------------------------------------------------------------------
-    if [[ $foundone -eq 0 ]]; then
+    if [[ "$foundone" -eq 0 ]]; then
         echo -e "${CYAN}No ${ticker} nodes found in /home${NC}"
     fi
 }
