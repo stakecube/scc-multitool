@@ -66,16 +66,14 @@ fi
 
 echo -e "Checking/installing/updating other script dependency's"
 if ! apt -y -qq install \
-    curl zip unzip nano ufw software-properties-common \
+    curl zip unzip nano ufw software-properties-common python3 \
     pwgen p7zip-full p7zip-rar; then
     echo -e "${RED}Dependency installation failed${NC}"
     exit 1
 fi
 
-#setup variables for passwords
-pass=`pwgen 14 1 b` || exit 1
-rpcuser=`pwgen 14 1 b` || exit 1
-rpcpass=`pwgen 36 1 b` || exit 1
+# Password and RPC credentials are generated inside install_mn so that
+# every single-node or batch installation receives unique credentials.
 
 clear
 
@@ -132,10 +130,10 @@ echo -e "${YELLOW}2  - Setup/Resize/Delete swap space with X MB swap space"
 echo -e "${YELLOW}3  - Wallet update (all ${ticker} nodes)"
 echo -e "${YELLOW}4  - Masternode stop/start/restart (stop/start/restart all ${ticker} nodes)"
 echo -e "${YELLOW}5  - Remove MasterNode"
-echo -e "${YELLOW}6  - Remove Multiple Masternodes"
-echo -e "${YELLOW}7  - Masternode install"
-echo -e "${YELLOW}8  - Masternode install with optional sleep delay function"
-echo -e "${YELLOW}9  - Install New Node with manually specified IPv4/IPv6 Address"
+echo -e "${YELLOW}6  - Remove Masternodes - multiple"
+echo -e "${YELLOW}7  - Masternode install - single"
+echo -e "${YELLOW}8  - Masternode install - multiple"
+echo -e "${YELLOW}9  - Masternode Install - singe with manually specified IPv4/IPv6 Address"
 echo -e "${YELLOW}10 - Download/Update StakeCubeCoin local bootstrap file from stakecube"
 echo -e "${YELLOW}11 - Make/Update your StakeCubeCoin local bootstrap file from an existing SCC node"
 echo -e "${YELLOW}12 - Chain/PoSe maintenance tool (single ${ticker} node)"
@@ -624,17 +622,17 @@ erase_chain_data() {
 
     checkaliasvalidity "$alias" require_existing || return 1
 
-    if ! systemctl cat "${alias}.service" >/dev/null 2>&1; then
-        echo -e "${RED}Service unit not found: ${alias}.service${NC}"
-        echo -e "${YELLOW}Chain repair cannot safely continue because the node could not be restarted.${NC}"
-        return 1
-    fi
-
     if [[ -z "$alias" ||
           "$node_home" != "/home/$alias" ||
           "$data_dir" != "/home/$alias/.${coindir}" ||
           ! -d "$data_dir" ]]; then
         echo -e "${RED}Unsafe or missing data directory: $data_dir${NC}"
+        return 1
+    fi
+
+    if ! systemctl cat "${alias}.service" >/dev/null 2>&1; then
+        echo -e "${RED}Service unit not found: ${alias}.service${NC}"
+        echo -e "${YELLOW}Chain repair cannot safely continue because the node could not be restarted.${NC}"
         return 1
     fi
 
@@ -645,6 +643,8 @@ erase_chain_data() {
         return 1
     fi
 
+    # Select only immediate entries, but recursively remove each selected
+    # directory so nested chain data is not left behind.
     if ! find "$data_dir" \
         -mindepth 1 \
         -maxdepth 1 \
@@ -663,16 +663,12 @@ function chain_repair() {
 	local alias="$1"
 	local bootstrapchoice="$2"
 	local updateallnodes="${3:-no}"
-  local repairapproved="${4:-no}"
 	local chaindownload=0
 	local nodesblock=0
   local currentblock
   local upperlimit lowerlimit
   local forcechainrepair
   local checkchainrepair2
-  local skip_block_compare=0
-  local repair_without_count
-  local service_state
 
   # ------------------------------------------------------------------
   # 1. Resolve alias
@@ -717,124 +713,67 @@ function chain_repair() {
   echo -e "${YELLOW}Upper Block Height:  ${CYAN}$upperlimit${NC}"
   echo
 
-local alias_command="/usr/local/bin/$alias"
+  local alias_command="/usr/local/bin/$alias"
 
-if [[ ! -x "$alias_command" ]]; then
-    echo -e "${RED}Alias command not found: $alias_command${NC}"
-    return 1
-fi
+  if [[ ! -x "$alias_command" ]]; then
+      echo -e "${RED}Alias command not found: $alias_command${NC}"
+      return 1
+  fi
 
-# Determine the systemd state for a more useful error message.
-service_state=$(
-    systemctl is-active "${alias}.service" 2>/dev/null || true
-)
+  if ! nodesblock=$("$alias_command" getblockcount); then
+      echo -e "${RED}Unable to obtain block count from $alias${NC}"
+      return 1
+  fi
 
-# Try the node first. The explorer comparison is pointless if the node
-# cannot provide its own block count.
-if ! nodesblock=$("$alias_command" getblockcount 2>/dev/null); then
-    skip_block_compare=1
-else
-    nodesblock="${nodesblock//$'\r'/}"
-    nodesblock="${nodesblock//$'\n'/}"
+  nodesblock="${nodesblock//$'\r'/}"
+  nodesblock="${nodesblock//$'\n'/}"
 
-    if [[ ! "$nodesblock" =~ ^[0-9]+$ ]]; then
-        skip_block_compare=1
-    fi
-fi
+  if [[ ! "$nodesblock" =~ ^[0-9]+$ ]]; then
+      echo -e "${RED}Invalid block count returned by $alias: $nodesblock${NC}"
+      return 1
+  fi
 
-if (( skip_block_compare == 1 )); then
+  if [[ "$currentblock" -eq "$nodesblock" ]]; then
+    echo -e "${CYAN}${alias}${NC} sccnode: $nodesblock explorer: $currentblock ${CYAN}Same as explorer${NC}"
     echo
-    echo -e "${RED}Unable to obtain a block count from ${CYAN}$alias${NC}"
+    echo -e "${MAGENTA}Chain repair is not needed for this node${NC}"
     echo
 
-    if [[ "$updateallnodes" == "yes" ||
-          "$repairapproved" == "yes" ]]; then
-        echo -e "${YELLOW}Repair was already approved; continuing without a block-count comparison${NC}"
-    else
-        prompt_yes_no repair_without_count \
-            "The node is not responding. Repair it without comparing block counts?" ||
-            return 1
-
-        if [[ "$repair_without_count" != "yes" ]]; then
-            echo -e "${YELLOW}Skipping repair for ${CYAN}$alias${NC}"
-            return 0
-        fi
+    if [[ "$updateallnodes" == "yes" ]]; then
+        return 0
     fi
 
-else
-    # -------------------------------------------------------------
-    # The node responded, so fetch the explorer height and compare.
-    # -------------------------------------------------------------
-    if ! currentblock=$(
-        curl -fsS --connect-timeout 10 --max-time 30 \
-            https://www.coinexplorer.net/api/v1/SCC/getblockcount
-    ); then
-        echo -e "${RED}Failed to contact explorer API${NC}"
-        return 1
-    fi
+    prompt_yes_no forcechainrepair \
+        "Do you wish to force the chain repair anyway?" || return 1
 
-    currentblock="${currentblock//$'\r'/}"
-    currentblock="${currentblock//$'\n'/}"
+    [[ "$forcechainrepair" == "yes" ]] || return 0
 
-    if [[ ! "$currentblock" =~ ^[0-9]+$ ]]; then
-        echo -e "${RED}Explorer returned an invalid block height: $currentblock${NC}"
-        return 1
-    fi
-
-    upperlimit=$((currentblock + 5))
-    lowerlimit=$((currentblock - 5))
-
+  elif (( nodesblock <= upperlimit && nodesblock >= lowerlimit )); then
+    echo -e "${CYAN}${alias}${NC} sccnode: $nodesblock explorer: $currentblock ${YELLOW}Within allowed variance${NC}"
     echo
-    echo -e "${YELLOW}Explorer Block Height: ${CYAN}$currentblock${NC}"
-    echo -e "${YELLOW}Lower Block Height:  ${CYAN}$lowerlimit${NC}"
-    echo -e "${YELLOW}Upper Block Height:  ${CYAN}$upperlimit${NC}"
+    echo -e "${YELLOW}Chain repair is normally not required${NC}"
     echo
 
-    if [[ "$currentblock" -eq "$nodesblock" ]]; then
-        echo -e "${CYAN}${alias}${NC} sccnode: $nodesblock explorer: $currentblock ${CYAN}Same as explorer${NC}"
-        echo
-        echo -e "${MAGENTA}Chain repair is not needed for this node${NC}"
-        echo
+    if [[ "$updateallnodes" == "no" ]]; then
+        prompt_yes_no checkchainrepair2 \
+            "Do you wish to repair this node anyway?" || return 1
 
-        if [[ "$updateallnodes" == "yes" ]]; then
-            return 0
-        fi
-
-        prompt_yes_no forcechainrepair \
-            "Do you wish to force the chain repair anyway?" ||
-            return 1
-
-        [[ "$forcechainrepair" == "yes" ]] || return 0
-
-    elif (( nodesblock <= upperlimit && nodesblock >= lowerlimit )); then
-        echo -e "${CYAN}${alias}${NC} sccnode: $nodesblock explorer: $currentblock ${YELLOW}Within allowed variance${NC}"
-        echo
-        echo -e "${YELLOW}Chain repair is normally not required${NC}"
-        echo
-
-        if [[ "$updateallnodes" == "no" ]]; then
-            prompt_yes_no checkchainrepair2 \
-                "Do you wish to repair this node anyway?" ||
-                return 1
-
-            [[ "$checkchainrepair2" == "yes" ]] || return 0
-        fi
-
-    else
-        echo -e "${CYAN}${alias}${NC} sccnode: $nodesblock explorer: $currentblock ${RED}Outside allowed variance${NC}"
-        echo
-        echo -e "${RED}The node appears to require a chain repair${NC}"
-        echo
-
-        if [[ "$updateallnodes" == "no" ]]; then
-            prompt_yes_no checkchainrepair2 \
-                "Continue with the chain repair?" ||
-                return 1
-
-            [[ "$checkchainrepair2" == "yes" ]] || return 0
-        fi
+        [[ "$checkchainrepair2" == "yes" ]] || return 0
     fi
-fi
+
+  else
+    echo -e "${CYAN}${alias}${NC} sccnode: $nodesblock explorer: $currentblock ${RED}Outside allowed variance${NC}"
+    echo
+    echo -e "${RED}The node appears to require a chain repair${NC}"
+    echo
+
+    if [[ "$updateallnodes" == "no" ]]; then
+        prompt_yes_no checkchainrepair2 \
+            "Continue with the chain repair?" || return 1
+
+        [[ "$checkchainrepair2" == "yes" ]] || return 0
+    fi
+  fi
 
   echo -e "${YELLOW}Downloading and/or Unzipping and replacing chain files for ${MAGENTA}$alias${NC}"
 
@@ -913,11 +852,860 @@ fi
 
 }
 
+# --------------------------------------------------------------
+# Batch masternode installation helpers
+# --------------------------------------------------------------
+parse_numbered_alias() {
+    if [[ $# -ne 4 ]] ||
+       ! is_variable_name "$2" ||
+       ! is_variable_name "$3" ||
+       ! is_variable_name "$4"; then
+        echo "parse_numbered_alias: invalid arguments" >&2
+        return 2
+    fi
+
+    local starting_alias="$1"
+    local -n prefix_ref="$2"
+    local -n number_ref="$3"
+    local -n width_ref="$4"
+
+    if [[ "$starting_alias" != scc* ||
+          ! "$starting_alias" =~ ^([A-Za-z0-9_-]*[^0-9])([0-9]+)$ ]]; then
+        echo -e "${RED}Starting alias must begin with scc and end in numbers${NC}"
+        echo -e "${YELLOW}Examples: sccmn001, sccmg041, sccwhonxt007${NC}"
+        return 1
+    fi
+
+    prefix_ref="${BASH_REMATCH[1]}"
+    width_ref=${#BASH_REMATCH[2]}
+    number_ref=$((10#${BASH_REMATCH[2]}))
+
+    return 0
+}
+
+
+get_installed_scc_nodes() {
+    if [[ $# -ne 1 ]] || ! is_variable_name "$1"; then
+        echo "get_installed_scc_nodes: invalid destination variable" >&2
+        return 2
+    fi
+
+    local -n result_ref="$1"
+    local conf alias_name
+
+    result_ref=()
+
+    while IFS= read -r -d '' conf; do
+        alias_name="${conf#/home/}"
+        alias_name="${alias_name%%/*}"
+        result_ref+=("$alias_name")
+    done < <(
+        find /home \
+            -mindepth 3 \
+            -maxdepth 3 \
+            -type f \
+            -path "/home/*/.${coindir}/${coinname}.conf" \
+            -print0
+    )
+
+    if (( ${#result_ref[@]} > 1 )); then
+        mapfile -t result_ref < <(
+            printf '%s\n' "${result_ref[@]}" | sort -Vu
+        )
+    fi
+
+    return 0
+}
+
+get_highest_installed_ipv6() {
+    if [[ $# -ne 1 ]] || ! is_variable_name "$1"; then
+        echo "get_highest_installed_ipv6: invalid destination variable" >&2
+        return 2
+    fi
+
+    local -n result_ref="$1"
+    local first_netplan_ipv6 conf
+
+    result_ref=""
+
+    checknetcfgfile || return 1
+
+    first_netplan_ipv6=$(
+        grep -Eo '[[:xdigit:]:]+/64' "$netcfg" | head -n 1
+    )
+
+    if [[ -z "$first_netplan_ipv6" ]]; then
+        return 1
+    fi
+
+    result_ref=$(
+        {
+            while IFS= read -r -d '' conf; do
+                awk -F= '
+                    /^bind=/ {
+                        value=$2
+                        gsub(/[[:space:]]/, "", value)
+
+                        if (value ~ /^\[/) {
+                            sub(/^\[/, "", value)
+                            sub(/\].*$/, "", value)
+                            print value
+                        } else if (value ~ /:/) {
+                            print value
+                        }
+                    }
+                ' "$conf"
+            done < <(
+                find /home \
+                    -mindepth 3 \
+                    -maxdepth 3 \
+                    -type f \
+                    -path "/home/*/.${coindir}/${coinname}.conf" \
+                    -print0
+            )
+        } | python3 -c '
+import ipaddress
+import sys
+
+network = ipaddress.ip_network(sys.argv[1], strict=False)
+highest = None
+
+for raw_address in sys.stdin:
+    raw_address = raw_address.strip()
+    if not raw_address:
+        continue
+
+    try:
+        address = ipaddress.ip_address(raw_address)
+    except ValueError:
+        continue
+
+    if address.version != 6 or address not in network:
+        continue
+
+    if highest is None or int(address) > int(highest):
+        highest = address
+
+if highest is not None:
+    print(highest.compressed)
+' "$first_netplan_ipv6"
+    )
+
+    [[ -n "$result_ref" ]]
+}
+
+display_batch_install_context() {
+    local -a installed_nodes=()
+    local highest_ipv6
+    local node column_count=0
+
+    get_installed_scc_nodes installed_nodes || return 1
+
+    echo -e "${UNDERLINE}${CYAN}Currently installed SCC nodes (${#installed_nodes[@]})${NC}"
+    echo
+
+    if (( ${#installed_nodes[@]} == 0 )); then
+        echo -e "${YELLOW}No installed SCC nodes were found.${NC}"
+    else
+        for node in "${installed_nodes[@]}"; do
+            printf '  %-18s' "$node"
+            ((column_count++))
+
+            if (( column_count % 6 == 0 )); then
+                printf '\n'
+            fi
+        done
+
+        if (( column_count % 6 != 0 )); then
+            printf '\n'
+        fi
+    fi
+
+    echo
+
+    if get_highest_installed_ipv6 highest_ipv6; then
+        echo -e "${YELLOW}Previous highest used IPv6 address is: ${CYAN}${highest_ipv6}${NC}"
+    else
+        echo -e "${YELLOW}No installed SCC node currently claims an IPv6 address in the VPS netplan /64.${NC}"
+    fi
+
+    echo
+    return 0
+}
+
+suggest_next_hex_ipv6() {
+    if [[ $# -ne 1 ]] || ! is_variable_name "$1"; then
+        echo "suggest_next_hex_ipv6: invalid destination variable" >&2
+        return 2
+    fi
+
+    local -n result_ref="$1"
+    local -a configured_ips=()
+    local base_ip base_prefix base_suffix
+    local address address_prefix address_suffix address_number
+    local base_number block_start block_end
+    local maximum_number next_number width formatted_suffix
+
+    checknetcfgfile || return 1
+
+    mapfile -t configured_ips < <(
+        grep -Eo '[[:xdigit:]:]+/64' "$netcfg" |
+        sed 's#/64$##'
+    )
+
+    if (( ${#configured_ips[@]} == 0 )); then
+        echo -e "${RED}No IPv6 /64 address was found in $netcfg${NC}"
+        return 1
+    fi
+
+    # The first IPv6 /64 is the VPS base address. The high byte of its
+    # final hextet identifies the VPS allocation (for example 41xx).
+    # Generated node addresses stay inside that xx00-xxff block.
+    base_ip="${configured_ips[0]}"
+    base_prefix="${base_ip%:*}"
+    base_suffix="${base_ip##*:}"
+    base_suffix="${base_suffix,,}"
+
+    if [[ ! "$base_suffix" =~ ^[0-9a-f]{1,4}$ ]]; then
+        echo -e "${RED}The first IPv6 address has an invalid final hextet:${NC}"
+        echo -e "${YELLOW}$base_ip${NC}"
+        return 1
+    fi
+
+    width=${#base_suffix}
+    (( width < 2 )) && width=2
+
+    base_number=$((16#$base_suffix))
+    block_start=$((base_number & 0xff00))
+    block_end=$((block_start + 0xff))
+    maximum_number=$block_start
+
+    for address in "${configured_ips[@]}"; do
+        address_prefix="${address%:*}"
+        address_suffix="${address##*:}"
+        address_suffix="${address_suffix,,}"
+
+        [[ "${address_prefix,,}" == "${base_prefix,,}" ]] || continue
+        [[ "$address_suffix" =~ ^[0-9a-f]{1,4}$ ]] || continue
+
+        address_number=$((16#$address_suffix))
+        (( address_number >= block_start && address_number <= block_end )) || continue
+
+        # Only installed or active node addresses advance the suggestion.
+        # Unclaimed addresses already present in netplan remain reusable.
+        if ipv6_claimed_by_node "$address" &&
+           (( address_number > maximum_number )); then
+            maximum_number=$address_number
+        fi
+    done
+
+    # Preserve the existing visual convention: the first generated node
+    # starts at xx51. From there, advance in true hexadecimal order.
+    next_number=$((block_start + 0x51))
+    if (( maximum_number + 1 > next_number )); then
+        next_number=$((maximum_number + 1))
+    fi
+
+    if (( next_number > block_end )); then
+        printf -v formatted_suffix '%0*x' "$width" "$block_end"
+        echo -e "${RED}No hexadecimal IPv6 addresses remain in the ${formatted_suffix%??}xx VPS block${NC}"
+        return 1
+    fi
+
+    printf -v formatted_suffix '%0*x' "$width" "$next_number"
+    result_ref="${base_prefix}:${formatted_suffix}"
+    return 0
+}
+
+generate_hex_ipv6_sequence() {
+    if [[ $# -ne 3 ]] || ! is_variable_name "$3"; then
+        echo "generate_hex_ipv6_sequence: invalid arguments" >&2
+        return 2
+    fi
+
+    local starting_ip="$1"
+    local count="$2"
+    local -n result_ref="$3"
+    local prefix suffix width starting_number current_number formatted_suffix
+    local block_start block_end index
+
+    starting_ip="${starting_ip#[}"
+    starting_ip="${starting_ip%]}"
+    starting_ip="${starting_ip%/64}"
+
+    if [[ "$starting_ip" != *:* ]]; then
+        echo -e "${RED}Invalid starting IPv6 address: $starting_ip${NC}"
+        return 1
+    fi
+
+    prefix="${starting_ip%:*}"
+    suffix="${starting_ip##*:}"
+    suffix="${suffix,,}"
+
+    if [[ ! "$suffix" =~ ^[0-9a-f]{1,4}$ ]]; then
+        echo -e "${RED}The final IPv6 hextet must contain hexadecimal digits only${NC}"
+        return 1
+    fi
+
+    if [[ ! "$count" =~ ^[1-9][0-9]*$ ]]; then
+        echo -e "${RED}Invalid node count: $count${NC}"
+        return 1
+    fi
+
+    width=${#suffix}
+    (( width < 2 )) && width=2
+
+    starting_number=$((16#$suffix))
+    block_start=$((starting_number & 0xff00))
+    block_end=$((block_start + 0xff))
+
+    if (( starting_number + count - 1 > block_end )); then
+        printf -v formatted_suffix '%0*x' "$width" "$block_end"
+        echo -e "${RED}The requested IPv6 range would cross the VPS block boundary at $prefix:$formatted_suffix${NC}"
+        return 1
+    fi
+
+    result_ref=()
+
+    for ((index = 0; index < count; index++)); do
+        current_number=$((starting_number + index))
+        printf -v formatted_suffix '%0*x' "$width" "$current_number"
+        result_ref+=("${prefix}:${formatted_suffix}")
+    done
+
+    return 0
+}
+
+
+netplan_contains_ipv6() {
+    local address="$1"
+    grep -Fiq -- "${address}/64" "$netcfg"
+}
+
+ipv6_claimed_by_node() {
+    local address="$1"
+    local conf
+
+    while IFS= read -r conf; do
+        if grep -Fix -- "bind=[$address]" "$conf" ||
+           grep -Fiq -- "externalip=[$address]:" "$conf"; then
+            return 0
+        fi
+    done < <(
+        find /home \
+            -mindepth 3 \
+            -maxdepth 3 \
+            -type f \
+            -path "*/.${coindir}/${coinname}.conf" \
+            -print 2>/dev/null
+    )
+
+    # Also reject an address that currently has any TCP or UDP listener,
+    # even if its node configuration was moved or damaged.
+    if ss -lntupH 2>/dev/null |
+       grep -Fiq -- "[$address]:"; then
+        return 0
+    fi
+
+    return 1
+}
+
+bls_key_claimed_by_node() {
+    local key="$1"
+    local conf
+
+    while IFS= read -r conf; do
+        if grep -Fqx -- "masternodeblsprivkey=$key" "$conf"; then
+            return 0
+        fi
+    done < <(
+        find /home \
+            -mindepth 3 \
+            -maxdepth 3 \
+            -type f \
+            -path "*/.${coindir}/${coinname}.conf" \
+            -print 2>/dev/null
+    )
+
+    return 1
+}
+
+rpc_port_claimed() {
+    local check_port="$1"
+    local conf
+
+    while IFS= read -r conf; do
+        if grep -Fqx -- "rpcport=$check_port" "$conf"; then
+            return 0
+        fi
+    done < <(
+        find /home \
+            -mindepth 3 \
+            -maxdepth 3 \
+            -type f \
+            -path "*/.${coindir}/${coinname}.conf" \
+            -print 2>/dev/null
+    )
+
+    if ss -lntH 2>/dev/null |
+       awk -v wanted="$check_port" '
+           {
+               endpoint=$4
+               sub(/^.*:/, "", endpoint)
+               if (endpoint == wanted) {
+                   found=1
+                   exit
+               }
+           }
+           END { exit !found }
+       '; then
+        return 0
+    fi
+
+    return 1
+}
+
+netplan_add_ipv6_addresses() {
+    if [[ $# -ne 1 ]] || ! is_variable_name "$1"; then
+        echo "netplan_add_ipv6_addresses: invalid array name" >&2
+        return 2
+    fi
+
+    local -n addresses_ref="$1"
+    local template_line template_cidr template_ip base_prefix
+    local line_prefix line_suffix insert_line temporary_file address
+
+    (( ${#addresses_ref[@]} > 0 )) || return 0
+
+    template_line=$(grep -m1 -E '[[:xdigit:]:]+/64' "$netcfg") || {
+        echo -e "${RED}Unable to locate an IPv6 /64 template in $netcfg${NC}"
+        return 1
+    }
+
+    template_cidr=$(grep -Eo '[[:xdigit:]:]+/64' <<< "$template_line" | head -n1)
+    template_ip="${template_cidr%/64}"
+    base_prefix="${template_ip%:*}"
+    line_prefix="${template_line%%"$template_cidr"*}"
+    line_suffix="${template_line#*"$template_cidr"}"
+
+    insert_line=$(
+        awk -v prefix="${base_prefix}:" '
+            index($0, prefix) && index($0, "/64") { line=NR }
+            END { if (line) print line }
+        ' "$netcfg"
+    )
+
+    if [[ ! "$insert_line" =~ ^[0-9]+$ ]]; then
+        echo -e "${RED}Unable to determine the IPv6 insertion point in $netcfg${NC}"
+        return 1
+    fi
+
+    temporary_file=$(mktemp) || return 1
+
+    {
+        head -n "$insert_line" "$netcfg"
+        for address in "${addresses_ref[@]}"; do
+            printf '%s%s/64%s\n' "$line_prefix" "$address" "$line_suffix"
+        done
+        tail -n "+$((insert_line + 1))" "$netcfg"
+    } > "$temporary_file"
+
+    if ! cat "$temporary_file" > "$netcfg"; then
+        rm -f -- "$temporary_file"
+        return 1
+    fi
+
+    rm -f -- "$temporary_file"
+    return 0
+}
+
+netplan_remove_ipv6_addresses() {
+    if [[ $# -ne 1 ]] || ! is_variable_name "$1"; then
+        echo "netplan_remove_ipv6_addresses: invalid array name" >&2
+        return 2
+    fi
+
+    local -n addresses_ref="$1"
+    local remove_file temporary_file address
+
+    (( ${#addresses_ref[@]} > 0 )) || return 0
+
+    local runtime_tmpdir="/run"
+    [[ -d "$runtime_tmpdir" && -w "$runtime_tmpdir" ]] || runtime_tmpdir="/tmp"
+
+    remove_file=$(mktemp -p "$runtime_tmpdir" "${coinname}-ipv6-remove.XXXXXX") || return 1
+    temporary_file=$(mktemp -p "$runtime_tmpdir" "${coinname}-netplan-edit.XXXXXX") || {
+        rm -f -- "$remove_file"
+        return 1
+    }
+
+    for address in "${addresses_ref[@]}"; do
+        printf '%s/64\n' "$address"
+    done > "$remove_file"
+
+    awk '
+        NR == FNR {
+            remove[$0]=1
+            next
+        }
+        {
+            drop=0
+            for (cidr in remove) {
+                if (index($0, cidr)) {
+                    drop=1
+                    break
+                }
+            }
+            if (!drop) print
+        }
+    ' "$remove_file" "$netcfg" > "$temporary_file"
+
+    if ! cat "$temporary_file" > "$netcfg"; then
+        rm -f -- "$remove_file" "$temporary_file"
+        return 1
+    fi
+
+    rm -f -- "$remove_file" "$temporary_file"
+    return 0
+}
+
+cleanup_batch_unused_ipv6() {
+    if [[ $# -ne 1 ]] || ! is_variable_name "$1"; then
+        echo "cleanup_batch_unused_ipv6: invalid array name" >&2
+        return 2
+    fi
+
+    local -n added_ref="$1"
+    local -a unused_addresses=()
+    local address backup_file
+
+    for address in "${added_ref[@]}"; do
+        if ! ipv6_claimed_by_node "$address"; then
+            unused_addresses+=("$address")
+        fi
+    done
+
+    (( ${#unused_addresses[@]} > 0 )) || return 0
+
+    local runtime_tmpdir="/run"
+    [[ -d "$runtime_tmpdir" && -w "$runtime_tmpdir" ]] || runtime_tmpdir="/tmp"
+
+    backup_file=$(mktemp -p "$runtime_tmpdir" "${coinname}-netplan-cleanup.XXXXXX") || return 1
+    if ! cp -a -- "$netcfg" "$backup_file"; then
+        rm -f -- "$backup_file"
+        return 1
+    fi
+
+    if ! netplan_remove_ipv6_addresses unused_addresses ||
+       ! netplan generate ||
+       ! netplan apply; then
+        echo -e "${RED}Unable to remove unused batch IPv6 addresses; restoring netplan${NC}"
+        cp -a -- "$backup_file" "$netcfg"
+        netplan generate >/dev/null 2>&1 || true
+        netplan apply >/dev/null 2>&1 || true
+        rm -f -- "$backup_file"
+        return 1
+    fi
+
+    rm -f -- "$backup_file"
+
+    echo
+    echo -e "${YELLOW}Removed unused IPv6 addresses added by this batch:${NC}"
+    printf '  %s\n' "${unused_addresses[@]}"
+    return 0
+}
+
+choose_batch_bootstrap() {
+    if [[ $# -ne 3 ]] ||
+       ! is_variable_name "$1" ||
+       ! is_variable_name "$2" ||
+       ! is_variable_name "$3"; then
+        echo "choose_batch_bootstrap: invalid destination variables" >&2
+        return 2
+    fi
+
+    local -n bootstrapchoice_ref="$1"
+    local -n chaindownload_ref="$2"
+    local -n action_ref="$3"
+    local use_bootstrap refresh_bootstrap local_source
+    local bootstrap_file="$HOME/${coinname}.zip"
+
+    prompt_yes_no use_bootstrap \
+        "Use a bootstrap for all nodes in this batch?" || return 1
+
+    if [[ "$use_bootstrap" == "no" ]]; then
+        bootstrapchoice_ref="no"
+        chaindownload_ref="no"
+        action_ref="full-sync"
+        return 0
+    fi
+
+    prompt_yes_no refresh_bootstrap \
+        "Update or recreate the bootstrap before installing?" || return 1
+
+    if [[ "$refresh_bootstrap" == "no" ]]; then
+        if [[ ! -f "$bootstrap_file" ]]; then
+            echo -e "${RED}Bootstrap file not found: $bootstrap_file${NC}"
+            return 1
+        fi
+
+        bootstrapchoice_ref="yes"
+        chaindownload_ref=0
+        action_ref="existing"
+        return 0
+    fi
+
+    prompt_yes_no local_source \
+        "Build the bootstrap from a local node? Select no to download it." || return 1
+
+    bootstrapchoice_ref="yes"
+    chaindownload_ref=0
+
+    if [[ "$local_source" == "yes" ]]; then
+        action_ref="local-build"
+    else
+        action_ref="download"
+    fi
+
+    return 0
+}
+
+prepare_selected_batch_bootstrap() {
+    local action="$1"
+    local bootstrap_file="$HOME/${coinname}.zip"
+    local bootstrap_part="${bootstrap_file}.part"
+
+    case "$action" in
+        full-sync)
+            return 0
+            ;;
+        existing)
+            [[ -f "$bootstrap_file" ]] || {
+                echo -e "${RED}Bootstrap file not found: $bootstrap_file${NC}"
+                return 1
+            }
+            return 0
+            ;;
+        local-build)
+            offlinechainfilebuild || return 1
+            ;;
+        download)
+            if ! wget -nv --show-progress "$snapshot" -O "$bootstrap_part"; then
+                rm -f -- "$bootstrap_part"
+                echo -e "${RED}Bootstrap download failed${NC}"
+                return 1
+            fi
+
+            if ! 7za t "$bootstrap_part" >/dev/null; then
+                rm -f -- "$bootstrap_part"
+                echo -e "${RED}Downloaded bootstrap failed verification${NC}"
+                return 1
+            fi
+
+            mv -- "$bootstrap_part" "$bootstrap_file" || return 1
+            ;;
+        *)
+            echo -e "${RED}Unknown batch bootstrap action: $action${NC}"
+            return 1
+            ;;
+    esac
+
+    return 0
+}
+
+collect_batch_bls_keys() {
+    if [[ $# -ne 2 ]] ||
+       ! is_variable_name "$1" ||
+       ! is_variable_name "$2"; then
+        echo "collect_batch_bls_keys: invalid array names" >&2
+        return 2
+    fi
+
+    local -n aliases_ref="$1"
+    local -n keys_ref="$2"
+    local entered_key checked_key previous_key
+    local duplicate_key index
+
+    keys_ref=()
+
+    for ((index = 0; index < ${#aliases_ref[@]}; index++)); do
+        while true; do
+            echo
+            echo -e "${YELLOW}Enter the BLS private key for ${CYAN}${aliases_ref[index]}${NC}"
+
+            if ! read -r entered_key; then
+                echo -e "${RED}Input closed; aborting batch installation${NC}"
+                return 1
+            fi
+
+            if ! checkblskey checked_key "$entered_key"; then
+                continue
+            fi
+
+            duplicate_key=0
+            for previous_key in "${keys_ref[@]}"; do
+                if [[ "$checked_key" == "$previous_key" ]]; then
+                    duplicate_key=1
+                    break
+                fi
+            done
+
+            if (( duplicate_key == 1 )); then
+                echo -e "${RED}That BLS key was already entered for this batch${NC}"
+                continue
+            fi
+
+            if bls_key_claimed_by_node "$checked_key"; then
+                echo -e "${RED}That BLS key is already used by an installed node${NC}"
+                continue
+            fi
+
+            keys_ref+=("$checked_key")
+            break
+        done
+    done
+
+    return 0
+}
+
+# Require a conservative amount of free space before creating each node.
+# The chain currently consumes roughly 11-12 GiB, while the additional
+# allowance leaves room for extraction, chain growth, and existing nodes.
+check_mn_install_disk_space() {
+    local minimum_gib="${1:-25}"
+    local check_path="${2:-/home}"
+    local available_kib required_kib available_gib
+
+    if [[ ! "$minimum_gib" =~ ^[1-9][0-9]*$ ]]; then
+        echo "check_mn_install_disk_space: invalid minimum size" >&2
+        return 2
+    fi
+
+    if [[ ! -d "$check_path" ]]; then
+        echo -e "${RED}Disk-space check path does not exist: $check_path${NC}"
+        return 1
+    fi
+
+    available_kib=$(LC_ALL=C df -Pk -- "$check_path" | awk 'NR == 2 {print $4}')
+
+    if [[ ! "$available_kib" =~ ^[0-9]+$ ]]; then
+        echo -e "${RED}Unable to determine available disk space for $check_path${NC}"
+        return 1
+    fi
+
+    required_kib=$((minimum_gib * 1024 * 1024))
+    available_gib=$(awk -v kib="$available_kib" 'BEGIN {printf "%.1f", kib / 1048576}')
+
+    echo
+    echo -e "${YELLOW}Available space for the next node: ${CYAN}${available_gib} GiB${NC}"
+    echo -e "${YELLOW}Minimum required before installation: ${CYAN}${minimum_gib} GiB${NC}"
+
+    if (( available_kib < required_kib )); then
+        echo
+        echo -e "${RED}Insufficient disk space to install another masternode.${NC}"
+        echo -e "${YELLOW}No files for this node have been created by this install attempt.${NC}"
+        return 1
+    fi
+
+    return 0
+}
+
+# Remove only artifacts belonging to a newly-created node whose installation
+# failed. This is intentionally separate from interactive mn_uninstall because
+# the configuration file might not exist yet.
+rollback_partial_mn_install() {
+    local alias="$1"
+    local node_rpcport="${2:-}"
+    local cleanup_failed=0
+
+    if [[ ! "$alias" =~ ^[A-Za-z0-9_-]+$ ]]; then
+        echo -e "${RED}Refusing partial-install cleanup for invalid alias: $alias${NC}"
+        return 2
+    fi
+
+    echo
+    echo -e "${YELLOW}Rolling back partial installation for ${CYAN}$alias${NC}"
+
+    systemctl stop "${alias}.service" >/dev/null 2>&1 || true
+    systemctl disable "${alias}.service" >/dev/null 2>&1 || true
+
+    rm -f -- \
+        "/usr/local/bin/$alias" \
+        "/etc/systemd/system/${alias}.service" \
+        "/etc/logrotate.d/debug-$alias" || cleanup_failed=1
+
+    # Remove the partial chain first. This immediately frees space so account,
+    # systemd, and netplan cleanup can still write their small state files.
+    if [[ -e "/home/$alias" ]]; then
+        rm -rf -- "/home/$alias" || cleanup_failed=1
+    fi
+
+    if id -u "$alias" >/dev/null 2>&1; then
+        pkill -TERM -u "$alias" >/dev/null 2>&1 || true
+        sleep 1
+        pkill -KILL -u "$alias" >/dev/null 2>&1 || true
+
+        if ! userdel "$alias" >/dev/null 2>&1; then
+            echo -e "${RED}Unable to remove user account $alias${NC}"
+            cleanup_failed=1
+        fi
+    fi
+
+    # The P2P rule is shared by all nodes and must remain. The RPC rule is
+    # unique to this failed node and can be removed safely.
+    if [[ "$node_rpcport" =~ ^[0-9]+$ ]]; then
+        ufw --force delete allow from 127.0.0.1 to any \
+            port "$node_rpcport" proto tcp >/dev/null 2>&1 || true
+    fi
+
+    systemctl daemon-reload >/dev/null 2>&1 || cleanup_failed=1
+    systemctl reset-failed "${alias}.service" >/dev/null 2>&1 || true
+
+    if id -u "$alias" >/dev/null 2>&1 ||
+       [[ -e "/home/$alias" ||
+          -e "/usr/local/bin/$alias" ||
+          -e "/etc/systemd/system/${alias}.service" ]]; then
+        cleanup_failed=1
+    fi
+
+    if (( cleanup_failed != 0 )); then
+        echo -e "${RED}Partial cleanup for $alias was incomplete; manual review is required.${NC}"
+        return 1
+    fi
+
+    echo -e "${GREEN}Partial node $alias was removed successfully.${NC}"
+    return 0
+}
+
 function install_mn() {
 
-	local bypassipv6setup=$1
-	local bypassipv6addr=$2
-	local sleepdelay=$3
+    local bypassipv6setup="$1"
+    local bypassipv6addr="$2"
+    local sleepdelay="$3"
+    local supplied_alias="${4:-}"
+    local supplied_blskey="${5:-}"
+    local supplied_rpcport="${6:-}"
+    local supplied_bootstrapchoice="${7:-}"
+    local supplied_chaindownload="${8:-}"
+    local batchmode="${9:-no}"
+
+    local default_rpcport="$rpcport"
+    local rpcport="$default_rpcport"
+    local alias=""
+    local blskey=""
+    local bootstrapchoice=""
+    local chaindownload=0
+    local ipadd=""
+    local ipchoice=""
+    local ipv6_needs_add="no"
+    local suggested_ipv6 selected_ipv6 netplan_backup
+    local -a standalone_ipv6=()
+    local -a standalone_ips_to_add=()
+    local pass rpcuser rpcpass
+
+    pass=$(pwgen 14 1 b) || return 1
+    rpcuser=$(pwgen 14 1 b) || return 1
+    rpcpass=$(pwgen 36 1 b) || return 1
 
   if [[ "$bypassipv6setup" == "yes" ]]; then
       ipadd="${bypassipv6addr#[}"
@@ -937,18 +1725,24 @@ function install_mn() {
 
 
 	#get user input alias and bind set varible#
-	echo -e ""
-	echo -e "${YELLOW}Checking home directory for masternode alias's${NC}"
-	echo -e ""
-	ls /home
-	echo -e ""
-	echo -e "${YELLOW}Above are the alias names for the installed masternodes${NC}"
-	echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
-	echo -e "${YELLOW}To use other tools you must include ${CYAN}$ticker${YELLOW} in the alias${NC}"
+  if [[ -n "$supplied_alias" ]]; then
+      alias="$supplied_alias"
+      echo
+      echo -e "${MAGENTA}Using supplied alias $alias${NC}"
+  else
+      echo -e ""
+      echo -e "${YELLOW}Checking home directory for masternode alias's${NC}"
+      echo -e ""
+      ls /home
+      echo -e ""
+      echo -e "${YELLOW}Above are the alias names for the installed masternodes${NC}"
+      echo -e "${YELLOW}Please enter MN alias. Example: ${CYAN}sccmn001${NC}"
+      echo -e "${YELLOW}To use other tools you must include ${CYAN}$ticker${YELLOW} in the alias${NC}"
 
-  if ! read -r alias; then
-      echo -e "${RED}Input closed; aborting installation${NC}" >&2
-      return 1
+      if ! read -r alias; then
+          echo -e "${RED}Input closed; aborting installation${NC}" >&2
+          return 1
+      fi
   fi
 
   checkaliasvalidity "$alias" allow_new || return 1
@@ -963,22 +1757,36 @@ function install_mn() {
   fi
 
 
-	echo -e ""
-	echo -e "${YELLOW}${UNDERLINE}Enter the BLS secret key${NC}"
+  if [[ -n "$supplied_blskey" ]]; then
+      checkblskey blskey "$supplied_blskey" || return 1
+  else
+      echo -e ""
+      echo -e "${YELLOW}${UNDERLINE}Enter the BLS secret key${NC}"
 
-  if ! read -r blskey; then
-      echo -e "${RED}Input closed; aborting installation${NC}" >&2
-      return 1
+      if ! read -r blskey; then
+          echo -e "${RED}Input closed; aborting installation${NC}" >&2
+          return 1
+      fi
+
+      checkblskey blskey "$blskey" || return 1
   fi
 
-  checkblskey blskey "$blskey" || return 1
 
+  if [[ -n "$supplied_rpcport" ]]; then
+      rpcport="$supplied_rpcport"
+      echo -e "${MAGENTA}Using supplied RPC port $rpcport${NC}"
+  else
+      echo -e ""
+      echo -e "${YELLOW}${UNDERLINE}Please enter a unique RPC port number. Default is ${CYAN}$rpcport${NC}"
+      echo -e "${YELLOW}Examples: for ${CYAN}sccmn001 ${YELLOW}use ${CYAN}40010 ${YELLOW}and so on${NC}"
+      echo -e "${YELLOW}So it's 4(node number)0 (40010 for sccmn001)${NC}"
+      read -r rpcport
+  fi
 
-	echo -e ""
-	echo -e "${YELLOW}${UNDERLINE}Please enter a unique RPC port number. Default is ${CYAN}$rpcport${NC}"
-	echo -e "${YELLOW}Examples: for ${CYAN}sccmn001 ${YELLOW}use ${CYAN}40010 ${YELLOW}and so on${NC}"
-	echo -e "${YELLOW}So it's 4(node number)0 (40010 for sccmn001)${NC}"
-	read -r rpcport
+  if [[ ! "$rpcport" =~ ^[0-9]+$ ]] || (( rpcport < 1 || rpcport > 65535 )); then
+      echo -e "${RED}Invalid RPC port: $rpcport${NC}"
+      return 1
+  fi
 
 	if [[ $bypassipv6setup == no ]]
 		then
@@ -992,65 +1800,41 @@ function install_mn() {
 			echo -e ""
 			echo -e "Checking/installing dependency for auto IP setup"
 
-			if [[ $ipchoice == yes ]]
-				then
-					#set default IPv6
+            if [[ "$ipchoice" == "yes" ]]; then
+                checknetcfgfile || return 1
 
-  				checknetcfgfile || return 1
+                suggest_next_hex_ipv6 suggested_ipv6 || return 1
 
-          sed -i '1{/^$/d}' "$netcfg" || return 1
-          netconfcount=$(grep -cF '/64' "$netcfg")
+                echo
+                echo -e "${YELLOW}Suggested hexadecimal IPv6: ${CYAN}$suggested_ipv6${NC}"
+                echo -e "${YELLOW}Hex progression continues as 59, 5a, 5b ... ff.${NC}"
+                echo -e "${YELLOW}Press Enter to accept it, or enter another IPv6 in the same VPS block.${NC}"
 
-					linenumber1=$(grep -nF '/64' "$netcfg" | cut -d: -f1 | head -n 1)
-					linenumber2=$((linenumber1 + netconfcount))
-#					echo -e "$linenumber1"
-#					echo -e "$linenumber2"
-          dipv6=$(sed -n "${linenumber1}p" "$netcfg")
+                if ! read -r selected_ipv6; then
+                    echo -e "${RED}Input closed; aborting installation${NC}"
+                    return 1
+                fi
 
-					spaces=$(echo -e "$dipv6" | tr -cd ' \t' | wc -c)
-					spaces=$(( $spaces-2 ))
-					ipv6test="$(echo $dipv6 | grep -E '.{0,4}\/64')"
-					ipv6test2="$(echo $ipv6test | awk 'match($0,"/64"){print substr($0,RSTART-4,4)}')"
-					ipv6test2="$(echo $ipv6test2 | cut -d\: -f3)"
-					ipv6test2="$(echo $ipv6test2 | tr -d ':')"
-					ipv6test3=$(( $ipv6test2 + $netconfcount + 50 ))
-#					echo -e "ipv6test $ipv6test"
-#					echo -e "ipv6test2 $ipv6test2"
-#					echo -e "ipv6test3 $ipv6test3"
-#					echo -e " 2 $dipv6"
-#					echo -e " 3 $spaces"
-#					echo -e "$netconfcount"
-					cipv6=$(( $ipv6test3 ))
-#					echo -e "$cipv6"
-					ipv6="$(echo $dipv6 | sed "s/\:$ipv6test2/\:$cipv6/g")"
-					echo -e ""
-					echo -e "New IPv6 is $ipv6"
-					finalconfigipv6="$(echo -e "$(pad " " $spaces) ${ipv6}")"
-#					echo -e "$finalconfigipv6"
-#					sed -i "${linenumber2}i\\${finalconfigipv6}" $netcfg
+                selected_ipv6="${selected_ipv6:-$suggested_ipv6}"
 
+                generate_hex_ipv6_sequence \
+                    "$selected_ipv6" 1 standalone_ipv6 || return 1
 
-#			sed -i '1{/^$/d}' $netcfg
-#			netconfcount=$(grep -c :0000:0000 $netcfg)
-#			linenumber1=$((grep -n ":0000:0000" $netcfg) | cut -d\: -f1 | head -n 1)
-#			echo -e "$linenumber1"
-#			dipv6=$(sed -n "$linenumber1"p $netcfg)
-#			echo -e " 2 $dipv6"
-#			echo -e "$netconfcount"
-#			cipv6=$(( $netconfcount+51 ))
-#			echo -e "$cipv6"
-#			ipv6="$(echo $dipv6 | sed "s/:0001/:$cipv6/g")"
-#			echo -e "New IPv6 is $ipv6"
+                ipadd="${standalone_ipv6[0]}"
+                ipv6conf="$ipadd"
 
-#			#Add IPv6 address to netcfg file
-#			sed -i "/gateway6/i \ \ \ \ \ \ \ \ ${ipv6}" $netcfg
+                if ipv6_claimed_by_node "$ipadd"; then
+                    echo -e "${RED}IPv6 address is already assigned to an installed or active node: $ipadd${NC}"
+                    return 1
+                fi
 
-#					netplan apply
-
-					#tidy IP input for conf
-					ipv6conf="$(echo $ipv6 | sed 's/.\{3\}$//')"
-					ipv6conf="$(echo $ipv6conf | sed "s/- //g")"
-				else
+                if netplan_contains_ipv6 "$ipadd"; then
+                    echo -e "${YELLOW}Reusing unclaimed IPv6 already in netplan: ${CYAN}$ipadd${NC}"
+                else
+                    standalone_ips_to_add+=("$ipadd")
+                    ipv6_needs_add="yes"
+                fi
+            else
 					#check ip set IP/bind variable
 					echo -e "Finding IPv4 address"
 					ipadd=$(curl http://ifconfig.me/ip)
@@ -1067,28 +1851,65 @@ function install_mn() {
 
 #	checkyesno $bootstrapchoice
 
-  prompt_yes_no bootstrapchoice "${YELLOW}Use offline bootstrap?${NC}" || return 1
+  if [[ -n "$supplied_bootstrapchoice" ]]; then
+      case "$supplied_bootstrapchoice" in
+          yes)
+              bootstrapchoice="yes"
+              chaindownload=0
+              ;;
+          no)
+              bootstrapchoice="no"
+              case "$supplied_chaindownload" in
+                  yes|no)
+                      chaindownload="$supplied_chaindownload"
+                      ;;
+                  *)
+                      echo -e "${RED}Invalid supplied chain-download choice${NC}"
+                      return 1
+                      ;;
+              esac
+              ;;
+          *)
+              echo -e "${RED}Invalid supplied bootstrap choice${NC}"
+              return 1
+              ;;
+      esac
+  else
+      prompt_yes_no bootstrapchoice "${YELLOW}Use offline bootstrap?${NC}" || return 1
 
-	if [[ $bootstrapchoice == no ]]
-		then
-			echo -e ""
-#			echo -e "${YELLOW}Do you wish to download from the web (${CYAN}yes${YELLOW}) or full chain downlaod (${CYAN}no${YELLOW})${NC}"
-#			echo -e "${CYAN}Please enter ${MAGENTA}yes${NC} ${CYAN}or${NC} ${MAGENTA}no${CYAN} only${NC}"
-#			read chaindownload
+      if [[ "$bootstrapchoice" == "no" ]]; then
+          echo -e ""
+          prompt_yes_no chaindownload "${YELLOW}Do you wish to download from the web (${CYAN}yes${YELLOW}) or full chain downlaod (${CYAN}no${YELLOW})${NC}" || return 1
+      else
+          chaindownload=0
+      fi
+  fi
 
-#			checkyesno $chaindownload
+  # Perform this immediately before the first persistent install change.
+  # Batch mode calls install_mn once per node, so this is rechecked each time.
+  check_mn_install_disk_space 25 /home || return 1
 
-      prompt_yes_no chaindownload "${YELLOW}Do you wish to download from the web (${CYAN}yes${YELLOW}) or full chain downlaod (${CYAN}no${YELLOW})${NC}" || return 1
-		else
-			chaindownload=0
-	fi
-
-  if [[ "$bypassipv6setup" == "no" && "$ipchoice" == "yes" ]]; then
+  if [[ "$bypassipv6setup" == "no" &&
+        "$ipchoice" == "yes" &&
+        "$ipv6_needs_add" == "yes" ]]; then
       echo
-      echo -e "${CYAN}Applying IP configuration${NC}"
+      echo -e "${CYAN}Applying hexadecimal IPv6 configuration${NC}"
 
-      sed -i "${linenumber2}i\\${finalconfigipv6}" "$netcfg" || return 1
-      netplan apply || return 1
+      netplan_backup="${netcfg}.single-install-backup.$$"
+      cp -a -- "$netcfg" "$netplan_backup" || return 1
+
+      if ! netplan_add_ipv6_addresses standalone_ips_to_add ||
+         ! netplan generate ||
+         ! netplan apply; then
+          echo -e "${RED}Netplan update failed; restoring the original configuration${NC}"
+          cp -a -- "$netplan_backup" "$netcfg"
+          netplan generate >/dev/null 2>&1 || true
+          netplan apply >/dev/null 2>&1 || true
+          rm -f -- "$netplan_backup"
+          return 1
+      fi
+
+      rm -f -- "$netplan_backup"
   fi
 
 	echo -e ""
@@ -1113,10 +1934,9 @@ function install_mn() {
 
 	#Sleep/Delay check and install
 
-	if [[ $sleepdelay == yes ]]
-		then
-			sleeprandomfilecheck $sleeprandomtimer
-	fi
+	if [[ "$sleepdelay" == "yes" && "$batchmode" != "yes" ]]; then
+        sleeprandomfilecheck "$sleeprandomtimer" || return 1
+    fi
 
   local wrapper_file="/usr/local/bin/$alias"
   local service_file="/etc/systemd/system/${alias}.service"
@@ -1208,9 +2028,9 @@ EOF
 	echo -e "" >> $service_file
 	echo -e "[Install]" >> $service_file
 	echo -e "WantedBy=multi-user.target" >> $service_file
-  systemctl daemon-reload || return 1
-  systemctl enable "${alias}.service" || return 1
-  echo -e "${CYAN}System service setup and enabled${NC}"
+  # Do not enable the service until chain extraction and configuration
+  # have completed. A failed extraction must never create a boot-enabled node.
+  echo -e "${CYAN}System service file created; enablement deferred until install completes${NC}"
 
 
 	#update/copy chain files or get snapshot# from web or fresh complete chain download
@@ -1346,12 +2166,15 @@ EOF
       comment "$alias RPC port"
   echo -e "${YELLOW}Permissions and firewall rules set${NC}"
 	echo
-	echo -e "${YELLOW}Starting Node${NC}"
+	echo -e "${YELLOW}Enabling and starting Node${NC}"
 
-	systemctl start --no-block "$alias"
+  systemctl daemon-reload || return 1
+  systemctl enable "${alias}.service" || return 1
+  systemctl start --no-block "$alias" || return 1
 
   #Create Logrotate files
   local rotatefile
+  local logfile="/home/$alias/.${coindir}/debug.log"
   rotatefile="/etc/logrotate.d/debug-$alias"
   printf 'Creating %s file\n' "$rotatefile"
 
@@ -1374,8 +2197,10 @@ EOF
   chmod 0644 "$rotatefile"
 
 	echo
-	echo -e "${YELLOW}Please wait a moment and then read the following information${NC}"
-	displaypause 15
+    if [[ "$batchmode" != "yes" ]]; then
+        echo -e "${YELLOW}Please wait a moment and then read the following information${NC}"
+        displaypause 15
+    fi
 	echo
 	echo -e "${CYAN}$ticker${YELLOW} MN setup completed${NC}"
 	echo
@@ -1400,6 +2225,279 @@ EOF
 	echo -e "${CYAN}$discord${NC}"
 	echo
 
+    return 0
+}
+
+# --------------------------------------------------------------
+# Automated multi-node masternode installer
+# --------------------------------------------------------------
+install_mn_batch() {
+    local node_count starting_alias alias_prefix alias_start alias_width
+    local suggested_ip starting_ip
+    local suggested_rpc starting_rpc ending_rpc
+    local sleepdelay bootstrapchoice chaindownload bootstrap_action confirm_batch
+    local index alias_name rpc_value address
+    local netplan_backup failed_alias="" failed_status="Failed"
+    local -a batch_aliases=()
+    local -a batch_ips=()
+    local -a batch_rpcs=()
+    local -a batch_bls_keys=()
+    local -a ips_to_add=()
+    local -a successful_aliases=()
+
+    echo -e "${CYAN}Beginning automated masternode batch installation${NC}"
+    echo
+
+    display_batch_install_context || return 1
+
+    echo -e "${YELLOW}How many masternodes should be installed?${NC}"
+    if ! read -r node_count || [[ ! "$node_count" =~ ^[1-9][0-9]*$ ]]; then
+        echo -e "${RED}Invalid node count${NC}"
+        return 1
+    fi
+
+    echo
+    echo -e "${YELLOW}Enter the first alias in the batch${NC}"
+    echo -e "${YELLOW}Examples: ${CYAN}sccmn001, sccmg041, sccwhonxt007${NC}"
+    if ! read -r starting_alias; then
+        return 1
+    fi
+
+    parse_numbered_alias \
+        "$starting_alias" alias_prefix alias_start alias_width || return 1
+
+    for ((index = 0; index < node_count; index++)); do
+        printf -v alias_name '%s%0*d' \
+            "$alias_prefix" "$alias_width" "$((alias_start + index))"
+
+        checkaliasvalidity "$alias_name" allow_new || return 1
+
+        if id -u "$alias_name" >/dev/null 2>&1 ||
+           [[ -e "/home/$alias_name" ||
+              -e "/usr/local/bin/$alias_name" ||
+              -e "/etc/systemd/system/${alias_name}.service" ]]; then
+            echo -e "${RED}Alias already exists or has leftover files: $alias_name${NC}"
+            return 1
+        fi
+
+        batch_aliases+=("$alias_name")
+    done
+
+    checknetcfgfile || return 1
+
+    if suggest_next_hex_ipv6 suggested_ip; then
+        echo
+        echo -e "${YELLOW}Suggested starting IPv6: ${CYAN}$suggested_ip${NC}"
+        echo -e "${YELLOW}Press Enter to accept it, or enter another hexadecimal IPv6 in the same VPS block.${NC}"
+        read -r starting_ip
+        starting_ip="${starting_ip:-$suggested_ip}"
+    else
+        echo
+        echo -e "${YELLOW}Enter the starting IPv6 address for the batch${NC}"
+        read -r starting_ip || return 1
+    fi
+
+    generate_hex_ipv6_sequence \
+        "$starting_ip" "$node_count" batch_ips || return 1
+
+    for address in "${batch_ips[@]}"; do
+        if ipv6_claimed_by_node "$address"; then
+            echo -e "${RED}IPv6 address is already assigned to an installed node: $address${NC}"
+            return 1
+        fi
+
+        if netplan_contains_ipv6 "$address"; then
+            echo -e "${YELLOW}Reusing unclaimed IPv6 already in netplan: ${CYAN}$address${NC}"
+        else
+            ips_to_add+=("$address")
+        fi
+    done
+
+    suggested_rpc=$((40000 + alias_start * 10))
+
+    echo
+    echo -e "${YELLOW}Suggested starting RPC port: ${CYAN}$suggested_rpc${NC}"
+    echo -e "${YELLOW}This preserves the 4xxx0 layout. Press Enter to accept or enter another port.${NC}"
+    read -r starting_rpc
+    starting_rpc="${starting_rpc:-$suggested_rpc}"
+
+    if [[ ! "$starting_rpc" =~ ^[0-9]+$ ]]; then
+        echo -e "${RED}Invalid starting RPC port${NC}"
+        return 1
+    fi
+
+    ending_rpc=$((starting_rpc + (node_count - 1) * 10))
+    if (( starting_rpc < 1 || ending_rpc > 65535 )); then
+        echo -e "${RED}The planned RPC port range is outside 1-65535${NC}"
+        return 1
+    fi
+
+    for ((index = 0; index < node_count; index++)); do
+        rpc_value=$((starting_rpc + index * 10))
+
+        if rpc_port_claimed "$rpc_value"; then
+            echo -e "${RED}RPC port is already configured or listening: $rpc_value${NC}"
+            return 1
+        fi
+
+        batch_rpcs+=("$rpc_value")
+    done
+
+    prompt_yes_no sleepdelay \
+        "Enable the optional startup sleep delay for this batch?" || return 1
+
+    choose_batch_bootstrap bootstrapchoice chaindownload bootstrap_action || return 1
+
+    echo
+    echo -e "${UNDERLINE}${CYAN}Planned batch installation${NC}"
+    printf '%-5s %-20s %-42s %-8s\n' "No." "Alias" "IPv6" "RPC"
+    printf '%-5s %-20s %-42s %-8s\n' "---" "-----" "----" "---"
+
+    for ((index = 0; index < node_count; index++)); do
+        printf '%-5d %-20s %-42s %-8s\n' \
+            "$((index + 1))" \
+            "${batch_aliases[index]}" \
+            "${batch_ips[index]}" \
+            "${batch_rpcs[index]}"
+    done
+
+    echo
+    echo -e "${YELLOW}Netplan file: ${CYAN}$netcfg${NC}"
+    echo -e "${YELLOW}IPv6 progression: ${CYAN}hexadecimal within one xx00-xxff VPS block${NC}"
+    echo -e "${YELLOW}New IPv6 addresses to add: ${CYAN}${#ips_to_add[@]}${NC}"
+    echo -e "${YELLOW}Sleep delay: ${CYAN}$sleepdelay${NC}"
+
+    case "$bootstrap_action" in
+        existing)
+            echo -e "${YELLOW}Chain source: ${CYAN}existing $HOME/${coinname}.zip${NC}"
+            ;;
+        local-build)
+            echo -e "${YELLOW}Chain source: ${CYAN}new bootstrap built from a local node${NC}"
+            ;;
+        download)
+            echo -e "${YELLOW}Chain source: ${CYAN}new bootstrap downloaded from the web${NC}"
+            ;;
+        full-sync)
+            echo -e "${YELLOW}Chain source: ${CYAN}full synchronization${NC}"
+            ;;
+    esac
+
+    prompt_yes_no confirm_batch \
+        "Proceed with this batch installation plan?" || return 1
+
+    [[ "$confirm_batch" == "yes" ]] || return 0
+
+    # Perform the selected bootstrap action only after the plan is approved.
+    prepare_selected_batch_bootstrap "$bootstrap_action" || return 1
+
+    # Collect all keys before modifying netplan or creating users.
+    collect_batch_bls_keys batch_aliases batch_bls_keys || return 1
+
+    if [[ "$sleepdelay" == "yes" ]]; then
+        sleeprandomfilecheck "$sleeprandomtimer" || return 1
+    fi
+
+    # Refuse the batch before touching netplan when even the first node cannot
+    # meet the free-space requirement. install_mn repeats this before every node.
+    check_mn_install_disk_space 25 /home || return 1
+
+    if (( ${#ips_to_add[@]} > 0 )); then
+        netplan_backup="${netcfg}.batch-install-backup.$$"
+        cp -a -- "$netcfg" "$netplan_backup" || return 1
+
+        if ! netplan_add_ipv6_addresses ips_to_add ||
+           ! netplan generate ||
+           ! netplan apply; then
+            echo -e "${RED}Netplan update failed; restoring the original configuration${NC}"
+            cp -a -- "$netplan_backup" "$netcfg"
+            netplan generate >/dev/null 2>&1 || true
+            netplan apply >/dev/null 2>&1 || true
+            rm -f -- "$netplan_backup"
+            return 1
+        fi
+
+        rm -f -- "$netplan_backup"
+    fi
+
+    for ((index = 0; index < node_count; index++)); do
+        echo
+        echo -e "${UNDERLINE}${CYAN}Installing $((index + 1)) of $node_count: ${batch_aliases[index]}${NC}"
+
+        if ! install_mn \
+            "yes" \
+            "${batch_ips[index]}" \
+            "$sleepdelay" \
+            "${batch_aliases[index]}" \
+            "${batch_bls_keys[index]}" \
+            "${batch_rpcs[index]}" \
+            "$bootstrapchoice" \
+            "$chaindownload" \
+            "yes"; then
+            failed_alias="${batch_aliases[index]}"
+            echo -e "${RED}Batch installation stopped after failure on $failed_alias${NC}"
+
+            # Determine whether install_mn created anything before it failed.
+            if id -u "$failed_alias" >/dev/null 2>&1 ||
+               [[ -e "/home/$failed_alias" ||
+                  -e "/usr/local/bin/$failed_alias" ||
+                  -e "/etc/systemd/system/${failed_alias}.service" ]]; then
+                if rollback_partial_mn_install \
+                    "$failed_alias" "${batch_rpcs[index]}"; then
+                    failed_status="Failed/removed"
+                else
+                    failed_status="Cleanup needed"
+                fi
+            else
+                failed_status="Not installed"
+            fi
+
+            # Roll back the node first so its partial chain frees disk space.
+            # Netplan cleanup can then safely create its tiny working files.
+            if ! cleanup_batch_unused_ipv6 ips_to_add; then
+                echo -e "${RED}Unused IPv6 cleanup failed; review $netcfg manually.${NC}"
+            fi
+            break
+        fi
+
+        successful_aliases+=("${batch_aliases[index]}")
+    done
+
+    echo
+    echo -e "${UNDERLINE}${CYAN}Batch installation summary${NC}"
+    printf '%-5s %-20s %-42s %-8s %-18s\n' \
+        "No." "Alias" "IPv6" "RPC" "Status"
+    printf '%-5s %-20s %-42s %-8s %-18s\n' \
+        "---" "-----" "----" "---" "------"
+
+    local successful_count=${#successful_aliases[@]}
+    local node_status
+
+    for ((index = 0; index < node_count; index++)); do
+        if (( index < successful_count )); then
+            node_status="Installed"
+        elif [[ -n "$failed_alias" && "$index" -eq "$successful_count" ]]; then
+            node_status="$failed_status"
+        else
+            node_status="Not attempted"
+        fi
+
+        printf '%-5d %-20s %-42s %-8s %-18s\n' \
+            "$((index + 1))" \
+            "${batch_aliases[index]}" \
+            "${batch_ips[index]}" \
+            "${batch_rpcs[index]}" \
+            "$node_status"
+    done
+
+    echo
+
+    if [[ -n "$failed_alias" ]]; then
+        echo -e "${RED}Batch installation stopped after failure on ${CYAN}$failed_alias${NC}"
+        return 1
+    fi
+
+    echo -e "${GREEN}All requested masternodes were installed.${NC}"
+    return 0
 }
 
 function ipv6_setup() {
@@ -1965,75 +3063,59 @@ function check_status_nodes() {
         foundone=1
         echo -e "found ${CYAN}$i${NC}..."
 
-local alias_command="/usr/local/bin/$i"
-local mn_status=""
-local mn_status_exitcode=1
-local repairnode="no"
+        # -------------------------------------------------------------
+        # Verify the daemon process is running; try to start it if not
+        # -------------------------------------------------------------
+        local mn_status mn_status_exitcode
+        if ! checkprocess "$i"; then
+            echo -e "${RED}ERROR ${YELLOW}process for ${CYAN}$i${YELLOW} node not found${NC}"
 
-# -------------------------------------------------------------
-# Handle a stopped or unresponsive node.
-# -------------------------------------------------------------
-if ! checkprocess "$i"; then
-    echo -e "${RED}ERROR ${YELLOW}process for ${CYAN}$i${YELLOW} node not found${NC}"
-    echo
+            checkifstart "$i" || return 1
 
-    prompt_yes_no repairnode \
-        "Do you wish to repair this stopped or unresponsive node?" ||
-        return 1
+            echo -e "${YELLOW}Skipping health check until the node finishes starting${NC}"
+            echo
+            continue
+        fi
 
-    if [[ "$repairnode" != "yes" ]]; then
-        # Repair was declined, but optionally allow the operator
-        # to attempt a normal service start.
-        checkifstart "$i" || return 1
+        mn_status=$("$i" masternode status)   # $i must be the CLI binary name
+        mn_status_exitcode=$?
 
-        echo -e "${YELLOW}Skipping repair for ${CYAN}$i${NC}"
-        echo
-        continue
-    fi
+        # -------------------------------------------------------------
+        # Show the relevant bits of the status output (debug)
+        # -------------------------------------------------------------
+        # echo -e "Full status dump:"   # <‑‑ uncomment for full dump
+        # echo "$mn_status"
+        grep -E '(state|status)' <<< "$mn_status"
+        echo -e ""
 
-else
-    # ---------------------------------------------------------
-    # The process exists, so retrieve masternode status.
-    # ---------------------------------------------------------
-    if [[ ! -x "$alias_command" ]]; then
-        echo -e "${RED}Alias command not found: $alias_command${NC}"
-        echo -e "${YELLOW}Chain repair will not replace a missing CLI wrapper${NC}"
-        echo
-        continue
-    fi
+        # -------------------------------------------------------------
+        # Look for obvious error strings
+        # -------------------------------------------------------------
+        if grep -iq 'BANNED\|ERROR' <<< "$mn_status"; then
+            mn_status_exitcode=1
+        fi
 
-    if mn_status=$("$alias_command" masternode status 2>&1); then
-        mn_status_exitcode=0
-    else
-        mn_status_exitcode=1
-    fi
+        # -------------------------------------------------------------
+        # Healthy node → skip the rest of the loop
+        # -------------------------------------------------------------
+        if [[ $mn_status_exitcode -eq 0 ]]; then
+            echo -e "${YELLOW}Appears to be in good shape${NC}"
+            echo -e ""
+            continue
+        fi
 
-    grep -E '(state|status)' <<< "$mn_status"
-    echo
-
-    if grep -Eiq 'BANNED|ERROR' <<< "$mn_status"; then
-        mn_status_exitcode=1
-    fi
-
-    if [[ "$mn_status_exitcode" -eq 0 ]]; then
-        echo -e "${YELLOW}Appears to be in good shape${NC}"
-        echo
-        continue
-    fi
-
-    echo -e "${RED}Something appears to be wrong with node ${CYAN}$i${NC}"
-    echo
-
-    prompt_yes_no repairnode \
-        "Do you wish to initiate repair of this node?" ||
-        return 1
-
-    if [[ "$repairnode" != "yes" ]]; then
-        echo -e "${YELLOW}Skipping repair${NC}"
-        echo
-        continue
-    fi
-fi
+        # -------------------------------------------------------------
+        # Node appears broken – ask the user if they want a repair
+        # -------------------------------------------------------------
+        echo -e "${RED}Something appears to be wrong with node ${CYAN}$i${NC}"
+        echo -e ""
+        local repairnode
+        prompt_yes_no repairnode "${YELLOW}Do you wish to initiate repair of this node${NC}" || return 1
+        if [[ $repairnode != "yes" ]]; then
+            echo -e "${YELLOW}Skipping repair${NC}"
+            echo -e ""
+            continue
+        fi
 
         # -----------------------------------------------------------------
         # Chain‑file update (asked only once per run)
@@ -2045,7 +3127,7 @@ fi
 								echo -e "${YELLOW}Update from local node or from the web?${NC}"
                 prompt_yes_no updatechainfilelocal "${CYAN}Yes ${YELLOW}for local copy or ${CYAN}No ${YELLOW}for Web download${NC}" || return 1
                 if [[ $updatechainfilelocal == "yes" ]]; then
-                    offlinechainfilebuild || return 1
+                    offlinechainfilebuild
                 else
                     echo -e "${CYAN}Downloading updated bootstrap...${NC}"
                     cd $HOME
@@ -2081,9 +3163,9 @@ fi
         # Perform the actual repair
         # -----------------------------------------------------------------
         if [[ $offlinerepairall == "yes" ]]; then
-            chain_repair "$i" "yes" "$updateallnodes" "yes" || return 1
+            chain_repair "$i" "yes" "$updateallnodes" || return 1
         else
-            chain_repair "$i" "no" "$updateallnodes" "yes" || return 1
+            chain_repair "$i" "no" "$updateallnodes" || return 1
         fi
 
         echo -e ""
@@ -2211,7 +3293,7 @@ explorer_compare_and_repair() {
     # State variables — all local to avoid polluting parent scope
     # ------------------------------------------------------------------
     local foundone=0
-    local updatechainfile="unset"
+    local updatechainfile="no"
     local updatechainfilelocal="no"
     local offlinerepairall="unset"
     local updateallnodes="no"
@@ -2220,7 +3302,6 @@ explorer_compare_and_repair() {
     local upperlimit lowerlimit
     local nodeblock blockdiff
     local repairnode
-    local node_count_available
 
     echo -e "${CYAN}Beginning Explorer comparison tool with optional repair${NC}"
     echo
@@ -2288,53 +3369,45 @@ explorer_compare_and_repair() {
             continue
         fi
 
-repairnode="no"
-node_count_available=1
-nodeblock=""
+        if ! nodeblock=$("$alias_command" getblockcount); then
+            echo -e "${RED}Unable to obtain block count from $i${NC}"
+            continue
+        fi
 
-if ! nodeblock=$("$alias_command" getblockcount 2>/dev/null); then
-    node_count_available=0
-else
-    nodeblock="${nodeblock//$'\r'/}"
-    nodeblock="${nodeblock//$'\n'/}"
+        nodeblock="${nodeblock//$'\r'/}"
+        nodeblock="${nodeblock//$'\n'/}"
 
-    if [[ ! "$nodeblock" =~ ^[0-9]+$ ]]; then
-        node_count_available=0
-    fi
-fi
+        if [[ ! "$nodeblock" =~ ^[0-9]+$ ]]; then
+            echo -e "${RED}Invalid block count returned by $i: $nodeblock${NC}"
+            continue
+        fi
 
-if (( node_count_available == 1 )); then
-    blockdiff=$((currentblock - nodeblock))
+        blockdiff=$(( currentblock - nodeblock ))
+        # Ensure positive difference for comparison
+        (( blockdiff < 0 )) && blockdiff=$(( -blockdiff ))
 
-    # Convert the difference to an absolute value.
-    (( blockdiff < 0 )) && blockdiff=$((-blockdiff))
+        if [[ "$currentblock" -eq "$nodeblock" ]]; then
+            echo -e "${CYAN}${i}${NC} node: ${nodeblock}   explorer: ${currentblock}   ${CYAN}In sync${NC}"
+            echo
+            continue    # nothing to do for this node
+        fi
 
-    if [[ "$currentblock" -eq "$nodeblock" ]]; then
-        echo -e "${CYAN}${i}${NC} node: ${nodeblock}   explorer: ${currentblock}   ${CYAN}In sync${NC}"
+        if [[ "$blockdiff" -le "$blockcompare" ]]; then
+            echo -e "${CYAN}${i}${NC} node: ${nodeblock}   explorer: ${currentblock}   ${YELLOW}Within ${blockcompare}-block tolerance — skipping${NC}"
+            echo
+            continue
+        fi
+
+        # Block diff exceeds tolerance — fall through to repair logic
+        echo -e "${CYAN}${i}${NC} node: ${nodeblock}   explorer: ${currentblock}   ${RED}Out of sync by ${blockdiff} blocks${NC}"
         echo
-        continue
-    fi
 
-    if (( blockdiff <= blockcompare )); then
-        echo -e "${CYAN}${i}${NC} node: ${nodeblock}   explorer: ${currentblock}   ${YELLOW}Within ${blockcompare}-block tolerance — skipping${NC}"
-        echo
-        continue
-    fi
-
-    echo -e "${CYAN}${i}${NC} node: ${nodeblock}   explorer: ${currentblock}   ${RED}Out of sync by ${blockdiff} blocks${NC}"
-    echo
-
-else
-    echo -e "${RED}Unable to obtain a block count from ${CYAN}$i${NC}"
-    echo -e "${YELLOW}The node may be stopped, failed, or otherwise unresponsive${NC}"
-    echo
-fi
 
         # --------------------------------------------------------------
         # 3b. One-time: offer to refresh the offline bootstrap file
         #     (only asked once across all nodes)
         # --------------------------------------------------------------
-        if [[ "$updatechainfile" == "unset" ]]; then
+        if [[ "$updatechainfile" == "no" ]]; then
             prompt_yes_no updatechainfile "${YELLOW}Refresh the offline bootstrap file before repairing?${NC}" || return 1
 
             if [[ "$updatechainfile" == "yes" ]]; then
@@ -2381,9 +3454,9 @@ fi
         # --------------------------------------------------------------
         if [[ "$repairnode" == "yes" ]]; then
             if [[ "$offlinerepairall" == "yes" ]]; then
-                chain_repair "$i" "yes" "$updateallnodes" "yes" || return 1
+                chain_repair "$i" "yes" "$updateallnodes" || return 1
             else
-                chain_repair "$i" "no" "$updateallnodes" "yes" || return 1
+                chain_repair "$i" "no" "$updateallnodes" || return 1
             fi
         else
             echo -e "${YELLOW}Skipping repair for ${CYAN}${i}${NC}"
@@ -3049,19 +4122,26 @@ case $start in
 
 	7)	echo -e "${YELLOW}Starting $ticker MasterNode install${NC}"
 
-  	install_mn "no" "" "no" || exit 1
+  		prompt_yes_no sleepquestion \
+      		"${YELLOW}Do you wish to enable sleep delay?${NC}" || exit 1
+
+      if [[ "$sleepquestion" == "no" ]]; then
+  		    install_mn "yes" "$manualiptest" "no" || exit 1
+      else
+  		    install_mn "yes" "$manualiptest" "yes" || exit 1
+  		fi
 
 		exit
 
 	;;
 
-	8)	echo -e "${YELLOW}Starting $ticker MasterNode install with Sleep Delay functionality${NC}"
+	8)	echo -e "${YELLOW}Starting $ticker Multiple MasterNode install${NC}"
 
-  	install_mn "no" "" "yes" || exit 1
+      install_mn_batch || exit 1
 
-		exit
+    exit
 
-	;;
+  ;;
 
 	9) echo -e "${YELLOW}Beginning manual ip node install${NC}"
 		echo
