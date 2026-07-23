@@ -4126,9 +4126,9 @@ case $start in
       		"${YELLOW}Do you wish to enable sleep delay?${NC}" || exit 1
 
       if [[ "$sleepquestion" == "no" ]]; then
-  		    install_mn "yes" "$manualiptest" "no" || exit 1
+  		    install_mn "no" "" "no" || exit 1
       else
-  		    install_mn "yes" "$manualiptest" "yes" || exit 1
+  		    install_mn "no" "" "yes" || exit 1
   		fi
 
 		exit
