@@ -768,6 +768,9 @@ chain_repair_choose_all_source() {
     local choice
     local bootstrap_file="$HOME/${coinname}.zip"
     local part="${bootstrap_file}.part"
+    local bootstrap_mtime now_epoch age_seconds
+    local age_days age_hours age_minutes age_remainder
+    local modified_text age_text
 
     # Deliberately use a plain global result instead of a Bash nameref.
     # This avoids caller/helper variable aliasing entirely.
@@ -790,10 +793,43 @@ chain_repair_choose_all_source() {
                     echo -e "${RED}Bootstrap file not found: $bootstrap_file${NC}"
                     continue
                 fi
-                if ! 7za t "$bootstrap_file" >/dev/null; then
-                    echo -e "${RED}Existing bootstrap failed verification.${NC}"
-                    continue
+
+                bootstrap_mtime=$(stat -c '%Y' "$bootstrap_file" 2>/dev/null || true)
+                now_epoch=$(date +%s)
+
+                if [[ "$bootstrap_mtime" =~ ^[0-9]+$ ]]; then
+                    modified_text=$(date -d "@$bootstrap_mtime" '+%Y-%m-%d %H:%M:%S %Z' 2>/dev/null || true)
+                    [[ -n "$modified_text" ]] || modified_text="unknown"
+
+                    age_seconds=$((now_epoch - bootstrap_mtime))
+                    (( age_seconds >= 0 )) || age_seconds=0
+
+                    age_days=$((age_seconds / 86400))
+                    age_remainder=$((age_seconds % 86400))
+                    age_hours=$((age_remainder / 3600))
+                    age_remainder=$((age_remainder % 3600))
+                    age_minutes=$((age_remainder / 60))
+
+                    if (( age_days > 0 )); then
+                        age_text="${age_days} day(s), ${age_hours} hour(s), ${age_minutes} minute(s)"
+                    elif (( age_hours > 0 )); then
+                        age_text="${age_hours} hour(s), ${age_minutes} minute(s)"
+                    elif (( age_minutes > 0 )); then
+                        age_text="${age_minutes} minute(s)"
+                    else
+                        age_text="${age_seconds} second(s)"
+                    fi
+                else
+                    modified_text="unknown"
+                    age_text="unknown"
                 fi
+
+                echo
+                echo -e "${YELLOW}Using existing bootstrap: ${CYAN}$bootstrap_file${NC}"
+                echo -e "${YELLOW}Bootstrap modified: ${CYAN}$modified_text${NC}"
+                echo -e "${YELLOW}Bootstrap age:      ${CYAN}$age_text${NC}"
+                echo -e "${YELLOW}Existing bootstrap verification is skipped for this option.${NC}"
+
                 chain_repair_selected_source="bootstrap"
                 return 0
                 ;;
