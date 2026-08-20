@@ -765,9 +765,14 @@ chain_repair_wait_inactive() {
 }
 
 chain_repair_choose_all_source() {
-    local -n use_bootstrap="$1"
-    local choice bootstrap_file="$HOME/${coinname}.zip" part="${bootstrap_file}.part"
-    use_bootstrap=no
+    local choice
+    local bootstrap_file="$HOME/${coinname}.zip"
+    local part="${bootstrap_file}.part"
+
+    # Deliberately use a plain global result instead of a Bash nameref.
+    # This avoids caller/helper variable aliasing entirely.
+    chain_repair_selected_source=""
+
     while true; do
         echo
         echo -e "${UNDERLINE}${CYAN}Chain source for ALL-node repair${NC}"
@@ -778,32 +783,63 @@ chain_repair_choose_all_source() {
         echo -e "${YELLOW}0 - Cancel${NC}"
         echo
         read -rp "> " choice || return 1
+
         case "$choice" in
             1)
-                [[ -f "$bootstrap_file" ]] || { echo -e "${RED}Bootstrap file not found: $bootstrap_file${NC}"; continue; }
-                7za t "$bootstrap_file" >/dev/null || { echo -e "${RED}Existing bootstrap failed verification.${NC}"; continue; }
-                use_bootstrap=yes; return 0 ;;
+                if [[ ! -f "$bootstrap_file" ]]; then
+                    echo -e "${RED}Bootstrap file not found: $bootstrap_file${NC}"
+                    continue
+                fi
+                if ! 7za t "$bootstrap_file" >/dev/null; then
+                    echo -e "${RED}Existing bootstrap failed verification.${NC}"
+                    continue
+                fi
+                chain_repair_selected_source="bootstrap"
+                return 0
+                ;;
             2)
                 echo -e "${YELLOW}Building the bootstrap before any bulk chain data is removed...${NC}"
                 offlinechainfilebuild || return 1
-                [[ -f "$bootstrap_file" ]] && 7za t "$bootstrap_file" >/dev/null || { echo -e "${RED}Fresh bootstrap failed verification.${NC}"; return 1; }
-                use_bootstrap=yes; return 0 ;;
+                if [[ ! -f "$bootstrap_file" ]] || ! 7za t "$bootstrap_file" >/dev/null; then
+                    echo -e "${RED}Fresh bootstrap failed verification.${NC}"
+                    return 1
+                fi
+                chain_repair_selected_source="bootstrap"
+                return 0
+                ;;
             3)
                 rm -f -- "$part"
-                wget -nv --show-progress "$snapshot" -O "$part" || { rm -f -- "$part"; echo -e "${RED}Bootstrap download failed; no node data was changed.${NC}"; return 1; }
-                7za t "$part" >/dev/null || { rm -f -- "$part"; echo -e "${RED}Downloaded bootstrap failed verification.${NC}"; return 1; }
+                if ! wget -nv --show-progress "$snapshot" -O "$part"; then
+                    rm -f -- "$part"
+                    echo -e "${RED}Bootstrap download failed; no node data was changed.${NC}"
+                    return 1
+                fi
+                if ! 7za t "$part" >/dev/null; then
+                    rm -f -- "$part"
+                    echo -e "${RED}Downloaded bootstrap failed verification.${NC}"
+                    return 1
+                fi
                 mv -- "$part" "$bootstrap_file" || return 1
-                use_bootstrap=yes; return 0 ;;
-            4) use_bootstrap=no; return 0 ;;
-            0) return 2 ;;
-            *) echo -e "${RED}Invalid selection.${NC}" ;;
+                chain_repair_selected_source="bootstrap"
+                return 0
+                ;;
+            4)
+                chain_repair_selected_source="full-sync"
+                return 0
+                ;;
+            0)
+                return 2
+                ;;
+            *)
+                echo -e "${RED}Invalid selection.${NC}"
+                ;;
         esac
     done
 }
 
 chain_repair_all_nodes() {
     local -a aliases=() was_active=()
-    local alias conf data_dir use_bootstrap=no proceed delay index failure=0 stop_failure=0
+    local alias conf data_dir use_bootstrap=no proceed delay index failure=0 stop_failure=0 source_rc
     local bootstrap_file="$HOME/${coinname}.zip"
 
     chain_repair_get_mainnet_nodes aliases || return 1
@@ -828,8 +864,27 @@ chain_repair_all_nodes() {
     echo -e "${YELLOW}This is a forced replacement; explorer height comparison is skipped.${NC}"
     echo -e "${YELLOW}The existing erase_chain_data routine preserves wallet.dat and *.conf files.${NC}"
 
-    chain_repair_choose_all_source use_bootstrap
-    case $? in 0) ;; 2) return 0 ;; *) return 1 ;; esac
+    chain_repair_selected_source=""
+    chain_repair_choose_all_source
+    source_rc=$?
+    case "$source_rc" in
+        0) ;;
+        2) return 0 ;;
+        *) return 1 ;;
+    esac
+
+    case "$chain_repair_selected_source" in
+        bootstrap)
+            use_bootstrap=yes
+            ;;
+        full-sync)
+            use_bootstrap=no
+            ;;
+        *)
+            echo -e "${RED}Internal error: no valid chain source was selected. Repair aborted before shutdown.${NC}"
+            return 1
+            ;;
+    esac
 
     echo
     [[ "$use_bootstrap" == yes ]] \
