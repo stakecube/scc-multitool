@@ -737,20 +737,28 @@ erase_chain_data() {
 
 # --------------------------------------------------------------
 # Main-menu option 12: single or ALL-node chain repair
-# The ALL path intentionally excludes named-devnet configurations.
 # --------------------------------------------------------------
-chain_repair_get_mainnet_nodes() {
-    local -n out="$1"
+chain_repair_get_nodes() {
+    if [[ $# -ne 1 ]] || ! is_variable_name "$1"; then
+        echo "chain_repair_get_nodes: invalid destination variable" >&2
+        return 2
+    fi
+
+    local -n out_ref="$1"
     local -a found=()
     local alias conf
-    out=()
+
+    out_ref=()
     get_installed_scc_nodes found || return 1
+
     for alias in "${found[@]}"; do
         conf="/home/$alias/.${coindir}/${coinname}.conf"
         [[ -f "$conf" ]] || continue
-        grep -Eq '^[[:space:]]*devnet[[:space:]]*=' "$conf" && continue
-        out+=("$alias")
+        grep -Fqx -- "port=$port" "$conf" || continue
+        out_ref+=("$alias")
     done
+
+    return 0
 }
 
 chain_repair_wait_inactive() {
@@ -875,15 +883,13 @@ chain_repair_choose_all_source() {
 
 chain_repair_all_nodes() {
     local -a aliases=() was_active=()
-    local alias conf data_dir use_bootstrap=no proceed delay index failure=0 stop_failure=0 source_rc
+    local alias conf data_dir use_bootstrap=no proceed index failure=0 stop_failure=0 source_rc
     local bootstrap_file="$HOME/${coinname}.zip"
 
-    chain_repair_get_mainnet_nodes aliases || return 1
-    (( ${#aliases[@]} > 0 )) || { echo -e "${YELLOW}No non-devnet SCC nodes were found.${NC}"; return 1; }
+    chain_repair_get_nodes aliases || return 1
 
     echo
     echo -e "${UNDERLINE}${CYAN}Force chain repair on ALL SCC nodes${NC}"
-    echo -e "${YELLOW}Named-devnet nodes are excluded.${NC}"
     echo
     printf '%-5s %-24s %-10s\n' 'No.' 'Alias' 'Running'
     for ((index=0; index<${#aliases[@]}; index++)); do
@@ -927,34 +933,46 @@ chain_repair_all_nodes() {
         && echo -e "${YELLOW}Repair source: ${CYAN}$bootstrap_file${NC}" \
         || echo -e "${YELLOW}Repair source: ${CYAN}full peer synchronization${NC}"
 
-    prompt_yes_no proceed "Proceed with forced chain repair on all ${#aliases[@]} non-devnet SCC nodes?" || return 1
     [[ "$proceed" == yes ]] || return 0
 
-    echo
-    echo -e "${YELLOW}Seconds between node starts after repair? ${CYAN}Blank = 5, 0 = no delay${NC}"
-    read -r delay || return 1
-    [[ -n "$delay" ]] || delay=5
-    [[ "$delay" =~ ^[0-9]+$ ]] || { echo -e "${RED}Invalid restart delay.${NC}"; return 1; }
 
     echo
     echo -e "${CYAN}Preflighting all target nodes...${NC}"
     for alias in "${aliases[@]}"; do
         conf="/home/$alias/.${coindir}/${coinname}.conf"
         data_dir="/home/$alias/.${coindir}"
-        [[ "$alias" =~ ^[A-Za-z0-9_-]+$ && -d "$data_dir" && -f "$conf" ]] || { echo -e "${RED}Unsafe target layout for $alias.${NC}"; return 1; }
-        grep -Eq '^[[:space:]]*devnet[[:space:]]*=' "$conf" && { echo -e "${RED}Refusing devnet target $alias.${NC}"; return 1; }
-        systemctl cat "${alias}.service" >/dev/null 2>&1 || { echo -e "${RED}Missing service for $alias.${NC}"; return 1; }
+        [[ "$alias" =~ ^[A-Za-z0-9_-]+$ && -d "$data_dir" && -f "$conf" ]] || {
+            echo -e "${RED}Unsafe target layout for $alias.${NC}"
+            return 1
+        }
+        grep -Fqx -- "port=$port" "$conf" || {
+            echo -e "${RED}Unexpected SCC port configuration for $alias.${NC}"
+            return 1
+        }
+        systemctl cat "${alias}.service" >/dev/null 2>&1 || {
+            echo -e "${RED}Missing service for $alias.${NC}"
+            return 1
+        }
     done
     echo -e "${GREEN}Preflight passed for ${#aliases[@]} nodes.${NC}"
 
     echo
     echo -e "${YELLOW}Stopping all target SCC nodes...${NC}"
     for alias in "${aliases[@]}"; do
-        echo -e "${YELLOW}Stopping ${CYAN}$alias${NC}"
+        echo -e "${YELLOW}Stopping node ${CYAN}$alias${NC}"
         systemctl stop --no-block "${alias}.service" >/dev/null 2>&1 || true
     done
+
+    echo
     echo -e "${YELLOW}Waiting for every SCC daemon to finish shutting down...${NC}"
-    for alias in "${aliases[@]}"; do chain_repair_wait_inactive "$alias" 600 || stop_failure=1; done
+    for alias in "${aliases[@]}"; do
+        echo -e "${YELLOW}Waiting for node ${CYAN}$alias${YELLOW} to stop...${NC}"
+        if chain_repair_wait_inactive "$alias" 600; then
+            echo -e "${GREEN}Node ${CYAN}$alias${GREEN} is stopped.${NC}"
+        else
+            stop_failure=1
+        fi
+    done
 
     if (( stop_failure )); then
         echo -e "${RED}One or more nodes did not stop cleanly. No chain data has been removed.${NC}"
@@ -967,44 +985,63 @@ chain_repair_all_nodes() {
     echo -e "${GREEN}All target SCC nodes are stopped.${NC}"
     sync
     echo
-    echo -e "${YELLOW}Replacing chain data...${NC}"
+    echo -e "${YELLOW}Replacing chain data and starting each completed node...${NC}"
 
     for ((index=0; index<${#aliases[@]}; index++)); do
         alias="${aliases[index]}"
         echo
         echo -e "${UNDERLINE}${CYAN}[$((index+1))/${#aliases[@]}] $alias${NC}"
         echo -e "${YELLOW}Removing old chain files...${NC}"
-        erase_chain_data "$alias" || { failure=1; break; }
-        if [[ "$use_bootstrap" == yes ]]; then
-            echo -e "${YELLOW}Extracting bootstrap...${NC}"
-            7za x -y "$bootstrap_file" -o"/home/$alias" || { failure=1; break; }
-        else
-            echo -e "${YELLOW}$alias will perform a full synchronization after restart.${NC}"
+
+        if ! erase_chain_data "$alias"; then
+            echo -e "${RED}Chain cleanup failed for ${CYAN}$alias${NC}"
+            failure=1
+            break
         fi
-        chown -R -- "$alias:$alias" "/home/$alias" || { failure=1; break; }
+
+        if [[ "$use_bootstrap" == yes ]]; then
+            echo -e "${YELLOW}Extracting bootstrap for ${CYAN}$alias${NC}"
+            if ! 7za x -y "$bootstrap_file" -o"/home/$alias"; then
+                echo -e "${RED}Bootstrap extraction failed for ${CYAN}$alias${NC}"
+                failure=1
+                break
+            fi
+        else
+            echo -e "${YELLOW}${CYAN}$alias${YELLOW} will perform a full synchronization after restart.${NC}"
+        fi
+
+        if ! chown -R -- "$alias:$alias" "/home/$alias"; then
+            echo -e "${RED}Unable to restore ownership for ${CYAN}$alias${NC}"
+            failure=1
+            break
+        fi
+
+        if [[ "${was_active[index]}" == yes ]]; then
+            echo -e "${YELLOW}Starting node ${CYAN}$alias${NC}"
+            if ! systemctl start --no-block "${alias}.service"; then
+                echo -e "${RED}Failed to start node ${CYAN}$alias${NC}"
+                failure=1
+                break
+            fi
+        else
+            echo -e "${YELLOW}Node ${CYAN}$alias${YELLOW} was stopped before repair; leaving it stopped.${NC}"
+        fi
+
+        echo -e "${GREEN}Completed chain repair for ${CYAN}$alias${NC}"
     done
 
     if (( failure )); then
         echo
         echo -e "${RED}Bulk repair stopped after an error.${NC}"
-        echo -e "${YELLOW}All target services are intentionally left stopped for inspection.${NC}"
+        echo -e "${YELLOW}Nodes completed before the error may already be running.${NC}"
+        echo -e "${YELLOW}The failed node and any nodes not yet processed remain stopped.${NC}"
         return 1
     fi
 
     echo
-    echo -e "${GREEN}Chain data replacement completed on all ${#aliases[@]} nodes.${NC}"
-    echo -e "${YELLOW}Restarting only nodes that were running before repair...${NC}"
-    for ((index=0; index<${#aliases[@]}; index++)); do
-        [[ "${was_active[index]}" == yes ]] || continue
-        alias="${aliases[index]}"
-        echo -e "${YELLOW}Starting ${CYAN}$alias${NC}"
-        systemctl start --no-block "${alias}.service" || failure=1
-        (( delay > 0 )) && sleep "$delay"
-    done
+    echo -e "${GREEN}Chain repair completed on all ${#aliases[@]} nodes.${NC}"
+    echo -e "${YELLOW}Each node that was running before repair was started immediately after its chain data was restored.${NC}"
 
-    echo
-    (( failure == 0 )) || { echo -e "${RED}Repair completed, but one or more nodes failed to start.${NC}"; return 1; }
-    echo -e "${GREEN}ALL-node chain repair completed.${NC}"
 }
 
 chain_repair_main_menu() {
