@@ -933,6 +933,7 @@ chain_repair_all_nodes() {
         && echo -e "${YELLOW}Repair source: ${CYAN}$bootstrap_file${NC}" \
         || echo -e "${YELLOW}Repair source: ${CYAN}full peer synchronization${NC}"
 
+    prompt_yes_no proceed "Proceed with forced chain repair on all ${#aliases[@]} SCC nodes?" || return 1
     [[ "$proceed" == yes ]] || return 0
 
 
