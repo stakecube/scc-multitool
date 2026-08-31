@@ -559,6 +559,8 @@ function debugmodeonoff() {
     local debugcmd="empty"
     local debugcount
     local grepcheckstatus
+    local conf
+    local skipped_enabled=0
 
     echo -e ""
     echo -e "${YELLOW}Checking for ${ticker} MN's${NC}"
@@ -612,8 +614,25 @@ function debugmodeonoff() {
 
             echo -e "found ${CYAN}$basename_i${NC}..."
 
-            debugcount=$(grep -cFi 'debug' "$i/.scc/stakecubecoin.conf")
-            debugcmd=$(grep -ix 'debug=[0-1]' "$i/.scc/stakecubecoin.conf")
+            conf="$i/.scc/stakecubecoin.conf"
+
+            if [[ ! -f "$conf" ]]; then
+                echo -e "${RED}ERROR ${YELLOW}config file not found for ${CYAN}$basename_i${NC}"
+                continue
+            fi
+
+            # Option 94 enable-all: skip nodes already configured with debug=1
+            # Do this before process checks or debugmodeonoffsub() so an
+            # already-enabled node incurs no restart and no sleep/pause.
+            if [[ "$onoff" -eq 1 ]] &&
+               grep -Eiq '^[[:space:]]*debug[[:space:]]*=[[:space:]]*1[[:space:]]*$' "$conf"; then
+                echo -e "${YELLOW}Debugging already enabled on node ${CYAN}$basename_i${YELLOW} - skipping${NC}"
+                skipped_enabled=$((skipped_enabled + 1))
+                continue
+            fi
+
+            debugcount=$(grep -cFi 'debug' "$conf")
+            debugcmd=$(grep -ix 'debug=[0-1]' "$conf")
             grepcheckstatus=$?
 
             # Debugging output (keep as per your instructions)
@@ -638,6 +657,11 @@ function debugmodeonoff() {
             fi
         fi
     done
+
+    if [[ "$onoff" -eq 1 && "$skipped_enabled" -gt 0 ]]; then
+        echo
+        echo -e "${CYAN}Skipped ${GREEN}$skipped_enabled${CYAN} node(s) that already had debugging enabled.${NC}"
+    fi
 
     if [[ "$foundone" -eq 0 ]]; then
         echo -e ""
