@@ -7596,97 +7596,234 @@ function offlinechainfilebuild() {
     return 0
 }
 
+get_node_bind_ipv6() {
+    python3 - "$1" <<'PY'
+import ipaddress
+import sys
+
+addresses = set()
+with open(sys.argv[1], encoding="utf-8") as conf:
+    for line in conf:
+        key, sep, value = line.partition("=")
+        if not sep or key.strip() != "bind":
+            continue
+        value = value.split("#", 1)[0].strip()
+        if value.startswith("["):
+            value = value[1:].split("]", 1)[0]
+        try:
+            address = ipaddress.ip_address(value)
+        except ValueError:
+            continue
+        if address.version == 6 and not (address.is_unspecified or address.is_loopback or address.is_link_local):
+            addresses.add(address.compressed)
+for address in sorted(addresses):
+    print(address)
+PY
+}
+
+# Edit only individual IPv6 entries in a Netplan addresses block. Compare
+# parsed IPs so compressed/expanded notation cannot remove a different IP.
+# Unsupported layouts are left untouched for manual review.
+prepare_node_ipv6_removal() {
+    python3 - "$netcfg" "$1" "$2" "$coindir" "$coinname" <<'PY'
+import glob
+import ipaddress
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+
+source, raw_address, output, coindir, coinname = sys.argv[1:]
+target = ipaddress.ip_address(raw_address)
+
+def parse_endpoint(value):
+    value = value.split("#", 1)[0].strip()
+    if value.startswith("["):
+        value = value[1:].split("]", 1)[0]
+    try:
+        return ipaddress.ip_address(value)
+    except ValueError:
+        return None
+
+try:
+    # The removed node's config is gone by this point; protect all others.
+    for conf in glob.glob(f"/home/*/.{coindir}/{coinname}.conf"):
+        for line in Path(conf).read_text().splitlines():
+            key, sep, value = line.partition("=")
+            if sep and key.strip() in ("bind", "externalip") and parse_endpoint(value) == target:
+                raise ValueError(f"IPv6 {target} is still used by {conf}; keeping it")
+
+    ssh = os.environ.get("SSH_CONNECTION", "").split()
+    if len(ssh) == 4 and parse_endpoint(ssh[2]) == target:
+        raise ValueError(f"IPv6 {target} carries this SSH connection; keeping it")
+
+    route = subprocess.run(["ip", "-j", "-6", "route", "get", "2606:4700:4700::1111"],
+                           capture_output=True, text=True)
+    if route.returncode == 0:
+        for entry in json.loads(route.stdout):
+            if parse_endpoint(entry.get("prefsrc", entry.get("src", ""))) == target:
+                raise ValueError(f"IPv6 {target} is the default-route source; keeping it")
+
+    lines = Path(source).read_text().splitlines(keepends=True)
+    kept = []
+    addresses_indent = None
+    removed = 0
+    entry_pattern = re.compile(r'''^\s*-\s*["']?([0-9a-fA-F:]+/\d+)["']?\s*(?:#.*)?$''')
+    cidr_pattern = re.compile(r"[0-9a-fA-F:]+/\d+")
+    for line in lines:
+        stripped = line.strip()
+        indent = len(line) - len(line.lstrip())
+        if stripped and not stripped.startswith("#"):
+            if addresses_indent is not None and (indent < addresses_indent or
+                    (indent == addresses_indent and not stripped.startswith("-"))):
+                addresses_indent = None
+            if re.fullmatch(r"addresses:\s*(?:#.*)?", stripped):
+                addresses_indent = indent
+        match = entry_pattern.fullmatch(line.rstrip("\n\r"))
+        if addresses_indent is not None and match:
+            if ipaddress.ip_interface(match[1]).ip == target:
+                removed += 1
+                continue
+        # Refuse inline lists, mappings, routes or other uses of this address.
+        if not stripped.startswith("#"):
+            for cidr in cidr_pattern.findall(line.split("#", 1)[0]):
+                if ":" in cidr and ipaddress.ip_interface(cidr).ip == target:
+                    raise ValueError(f"IPv6 {target} has an unsupported Netplan layout; keeping it")
+        kept.append(line)
+    Path(output).write_text("".join(kept))
+    if not removed:
+        print(f"IPv6 {target} not found in {source}; no network changes made", file=sys.stderr)
+except (OSError, ValueError) as error:
+    print(error, file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
+remove_uninstalled_node_ipv6() {
+    local address="$1"
+    local backup_file edit_file
+
+    checknetcfgfile || return 1
+    if ipv6_claimed_by_node "$address"; then
+        echo -e "${YELLOW}IPv6 $address is still claimed by a node or listener; keeping it${NC}"
+        return 1
+    fi
+
+    backup_file=$(mktemp "${netcfg}.uninstall-backup.XXXXXX") || return 1
+    edit_file=$(mktemp) || { rm -f -- "$backup_file"; return 1; }
+    if ! cp -a -- "$netcfg" "$backup_file" ||
+       ! prepare_node_ipv6_removal "$address" "$edit_file"; then
+        rm -f -- "$backup_file" "$edit_file"
+        return 1
+    fi
+    if cmp -s "$netcfg" "$edit_file"; then
+        rm -f -- "$backup_file" "$edit_file"
+        return 0
+    fi
+
+    if ! cat "$edit_file" > "$netcfg" ||
+       ! netplan generate || ! netplan apply; then
+        echo -e "${RED}IPv6 removal failed; restoring Netplan from $backup_file${NC}"
+        # Keep the backup if either restoration or its apply fails.
+        if cp -a -- "$backup_file" "$netcfg" &&
+           netplan generate && netplan apply; then
+            rm -f -- "$backup_file"
+        else
+            echo -e "${RED}Network restoration failed; backup retained at $backup_file${NC}"
+        fi
+        rm -f -- "$edit_file"
+        return 1
+    fi
+    rm -f -- "$backup_file" "$edit_file"
+    echo -e "${CYAN}Removed IPv6 $address from Netplan${NC}"
+    return 0
+}
+
 # --------------------------------------------------------------
 #  mn_uninstall – Interactive removal of a single masternode
 # --------------------------------------------------------------
 function mn_uninstall() {
-    echo
-    echo -e "${YELLOW}Checking home directory for MN alias's${NC}"
-    # Show the list of accounts – useful for the operator to pick the right one
-    ls /home
-    echo
-    echo -e "${YELLOW}Above are the alias names for installed MN's${NC}"
-    echo -e "${CYAN}Please enter MN alias name${NC}"
-    echo
-    read -r alias
+    local alias conf ipv6_text remove_ip="no" address cleanup_status=0
+    local -a node_ipv6=()
 
-    # ---------------------------------------------------------
-    # Verify the alias points to a valid node configuration
-    # ---------------------------------------------------------
-    checkaliasvalidity "$alias" require_existing || return 1
+    prompt_for_alias alias "${1:-}" || return 1
+    conf="/home/$alias/.${coindir}/${coinname}.conf"
+    # Capture addresses before deleting the home directory.
+    ipv6_text=$(get_node_bind_ipv6 "$conf") || return 1
+    if [[ -n "$ipv6_text" ]]; then
+        mapfile -t node_ipv6 <<< "$ipv6_text"
+        echo -e "${YELLOW}IPv6 address(es) associated with ${CYAN}$alias${NC}"
+        printf '  %s\n' "${node_ipv6[@]}"
+        prompt_yes_no remove_ip \
+            "Remove these IPv6 addresses from Netplan too? Choose no to keep them for reinstalling this node on the same IP." || return 1
+    else
+        echo -e "${YELLOW}No removable IPv6 bind address found; host IP addresses will be kept.${NC}"
+    fi
 
-    # ---------------------------------------------------------
-    # Stop, disable and delete the system‑d service
-    # ---------------------------------------------------------
-    echo
     echo -e "${YELLOW}Stopping ${MAGENTA}$alias${NC}"
-    systemctl stop "$alias"
-
-    echo
-    echo -e "${YELLOW}Pausing script to ensure ${MAGENTA}$alias${YELLOW} has stopped${NC}"
+    if ! systemctl stop "$alias"; then
+        echo -e "${RED}Unable to stop $alias; removal aborted${NC}"
+        return 1
+    fi
     displaypause 20
+    if ! systemctl disable "$alias"; then
+        echo -e "${RED}Unable to disable $alias; removal aborted${NC}"
+        return 1
+    fi
 
-    echo -e "${YELLOW}Disabling $alias service${NC}"
-    systemctl disable "$alias"
-
-    # ---------------------------------------------------------
-    # Clean up binaries, service file, user, and home dir
-    # ---------------------------------------------------------
     echo -e "${YELLOW}Removing binary, service file, user and home directory${NC}"
-    rm -f "/usr/local/bin/$alias"
-    rm -f "/etc/systemd/system/${alias}.service"
-    rm -f "/etc/logrotate.d/debug-$alias"
-
+    rm -f -- "/usr/local/bin/$alias" "/etc/systemd/system/${alias}.service" \
+        "/etc/logrotate.d/debug-$alias" || return 1
     systemctl daemon-reload || {
         echo -e "${RED}Warning: systemd daemon reload failed${NC}"
     }
-
-    # `deluser` may not exist on every distro; fall back to `userdel` if needed.
-    if command -v deluser >/dev/null 2>&1; then
-        deluser "$alias"
-    else
-        userdel -r "$alias" 2>/dev/null || true
+    if id "$alias" >/dev/null 2>&1; then
+        if command -v deluser >/dev/null 2>&1; then
+            deluser "$alias" || return 1
+        else
+            userdel "$alias" || return 1
+        fi
     fi
-
-    # Remove the home directory (in case `deluser` didn’t wipe it)
-    rm -rf "/home/$alias"
-
-    echo
+    rm -rf -- "/home/$alias" || return 1
     echo -e "${CYAN}$alias removed${NC}"
+
+    if [[ "$remove_ip" == "yes" ]]; then
+        for address in "${node_ipv6[@]}"; do
+            remove_uninstalled_node_ipv6 "$address" || cleanup_status=1
+        done
+        if (( cleanup_status != 0 )); then
+            echo -e "${YELLOW}Node removed, but IPv6 cleanup was incomplete; review the messages above.${NC}"
+        fi
+    elif (( ${#node_ipv6[@]} > 0 )); then
+        echo -e "${CYAN}Kept IPv6 address(es) for reuse:${NC}"
+        printf '  %s\n' "${node_ipv6[@]}"
+    fi
+    return "$cleanup_status"
 }
 
 # --------------------------------------------------------------
-#  Multiple‑node uninstall tool
+#  Multiple-node uninstall tool: choose each node and its IP policy.
 # --------------------------------------------------------------
 function uninstall_multiple_nodes() {
+    local -a installed_nodes=()
+    local node remove_node status=0 found_any=0
+
     echo -e "${YELLOW}Beginning Multiple Nodes Uninstall Tool${NC}"
-    echo
-    echo -e "${YELLOW}Press ${CYAN}Control‑C${YELLOW} to abort at alias selection to quit${NC}"
-    echo
-
-    local found_any=0
-
-    # Walk through every home directory – avoid the "ls | $(…)" anti‑pattern
-    for dir in /home/*; do
-        local i=$(basename "$dir")
-
-        # Only act on accounts that contain “scc” (your masternode accounts)
-        if [[ $i == *scc* ]]; then
-            found_any=1
-            # The original script just called mn_uninstall; keep that behavior.
-            # If mn_uninstall expects the alias as an argument, pass it here:
-            #   mn_uninstall "$i"
-            mn_uninstall
-        fi
+    get_installed_scc_nodes installed_nodes || return 1
+    for node in "${installed_nodes[@]}"; do
+        [[ "$node" == *scc* ]] || continue
+        found_any=1
+        prompt_yes_no remove_node "Remove masternode $node?" || return 1
+        [[ "$remove_node" == "yes" ]] || continue
+        # Pass the actual alias; mn_uninstall asks its IP question per node.
+        mn_uninstall "$node" || { status=1; break; }
     done
-
-    # If no matching accounts were found, let the user know.
-    if [[ $found_any -eq 0 ]]; then
-        echo -e "${CYAN}Found no SCC node nodes${NC}"
-        echo
+    if (( found_any == 0 )); then
+        echo -e "${CYAN}Found no SCC nodes${NC}"
     fi
-
-    return 0
+    return "$status"
 }
 
 # --------------------------------------------------------------
@@ -8834,13 +8971,13 @@ case $start in
 
 	5)	echo -e "${YELLOW}Starting Removal tool${NC}"
 
-		mn_uninstall
+		mn_uninstall || exit 1
 
 		exit
 
 	;;
 
-  6)  uninstall_multiple_nodes
+  6)  uninstall_multiple_nodes || exit 1
 
     exit
 
